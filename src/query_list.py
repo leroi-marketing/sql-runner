@@ -6,7 +6,7 @@ import datetime
 import traceback
 import psycopg2
 
-import sqlrunner.conn
+from utils import config, get_connection
 
 
 class QueryList(list):
@@ -18,7 +18,7 @@ class QueryList(list):
     }
 
     def __init__(self, csv_string):
-        self.cursor = sqlrunner.conn.get_connection().cursor()
+        self.cursor = get_connection().cursor()
         for query in csv.DictReader(io.StringIO(csv_string.strip()), delimiter=';'):
             self.append(Query(**query))
 
@@ -29,10 +29,7 @@ class QueryList(list):
         print('read query lists from: {}'.format(', '.join(f for f in csv_files)))
         csv_string = ['schema_name;table_name;action']
         for file in csv_files:
-            file_path = os.path.join(path, file + '.csv')
-            if not os.path.isfile(file_path):
-                print('file {} does not exist'.format(file_path))
-                raise ValueError('{} not found'.format(file_path))
+            file_path = '{}/{}.csv'.format(path, file)
             with open(file_path, 'r') as f:
                 csv_string.append(f.read().strip())
         return QueryList('\n'.join(csv_string))
@@ -40,11 +37,11 @@ class QueryList(list):
     def test(self, schema_prefix='zz_'):
         schema_names = set(query.schema_name for query in self)
         for schema_name in schema_names:
-            self.cursor.execute(
-                """DROP SCHEMA IF EXISTS {schema_prefix}{schema_name} CASCADE;
-                   CREATE SCHEMA {schema_prefix}{schema_name};
-                """.format(**locals())
-            )
+            statements = """DROP SCHEMA IF EXISTS {schema_prefix}{schema_name} CASCADE;
+                         CREATE SCHEMA {schema_prefix}{schema_name};
+                         """.format(**locals())
+            for stmt in statements.split(';'):
+                self.cursor.execute(stmt)
         for query in self:
             query.schema_prefix = schema_prefix
             for schema_name in schema_names:
@@ -80,13 +77,22 @@ class Query(object):
         self.schema_prefix = ''
         self.table_name = table_name.strip()
         self.action = action.strip()
+        self.sql_path = config.sql_path
 
-        path = '../sql/{self.schema_name}/{self.table_name}.sql'.format(self=self)
+        path = '{self.sql_path}/{self.schema_name}/{self.table_name}.sql'.format(self=self)
         self.path = os.path.abspath(os.path.normpath(path))
+        print(self.path)
         if not os.path.isfile(self.path):
             raise ValueError('file {} does not exist'.format(self.path))
         with open(self.path, 'r') as f:
-            self.query = f.read()
+            self.query = ''
+            raw_query = f.readlines()
+            for line in raw_query:
+                # strip comments
+                comment = re.search('--', line)
+                if comment:
+                    line = line[:comment.start()]
+                self.query = self.query + line
 
     def __repr__(self):
         return '{self.schema_prefix}{self.schema_name}.{self.table_name} > {self.action}'.format(self=self)
@@ -120,35 +126,44 @@ class Query(object):
     def select_stmt(self):
         match = re.search(r'((SELECT|WITH)(\'.*\'|[^;])*)(;|$)', self.query, re.DOTALL)
         if match is not None:
-            select_stmt = match.group(1)
+            select_stmt = match.group(1).strip()
+            if select_stmt[-1] == ')' and select_stmt.count(')') > select_stmt.count('('):
+                select_stmt = select_stmt[:-1]
+
         else:
             select_stmt = None
         return select_stmt
 
     @property
     def distkey_stmt(self):
-        match = re.search(r'/\*.*(distkey\s*\([^\()]*\)).*\**/', self.query, re.DOTALL | re.IGNORECASE)
-        if match is not None:
-            if match.group(1) == 'DISTKEY ()':
-                distkey_stmt = 'DISTSTYLE ALL'
+        if config.database_type == 'redshift':
+            match = re.search(r'/\*.*(distkey\s*\([^\()]*\)).*\**/', self.query, re.DOTALL | re.IGNORECASE)
+            if match is not None:
+                if match.group(1) == 'DISTKEY ()':
+                    distkey_stmt = 'DISTSTYLE ALL'
+                else:
+                    distkey_stmt = 'DISTSTYLE KEY ' + match.group(1)
             else:
-                distkey_stmt = 'DISTSTYLE KEY ' + match.group(1)
+                distkey_stmt = 'DISTSTYLE EVEN'
+            return distkey_stmt
         else:
-            distkey_stmt = 'DISTSTYLE EVEN'
-        return distkey_stmt
+            return ''
 
     @property
     def sortkey_stmt(self):
-        match = re.search(r'/\*.*((compound\s*sortkey|interleaved\s*sortkey)\s*\([^\()]*\)).*\**/', self.query,
-                          re.DOTALL | re.IGNORECASE)
-        if match is None:
-            match = re.search(r'/\*.*(sortkey\s*\([^\()]*\)).*\**/', self.query,
+        if config.database_type == 'redshift':
+            match = re.search(r'/\*.*((compound\s*sortkey|interleaved\s*sortkey)\s*\([^\()]*\)).*\**/', self.query,
                               re.DOTALL | re.IGNORECASE)
-        if match is not None:
-            sortkey_stmt = match.group(1)
+            if match is None:
+                match = re.search(r'/\*.*(sortkey\s*\([^\()]*\)).*\**/', self.query,
+                                  re.DOTALL | re.IGNORECASE)
+            if match is not None:
+                sortkey_stmt = match.group(1)
+            else:
+                sortkey_stmt = ''
+            return sortkey_stmt
         else:
-            sortkey_stmt = ''
-        return sortkey_stmt
+            return ''
 
     @property
     def unique_keys(self):
@@ -171,25 +186,47 @@ class Query(object):
 
     @property
     def create_table_stmt(self):
-        return """
-        DROP TABLE IF EXISTS {self.name} CASCADE;
-        CREATE TABLE {self.name} {self.distkey_stmt} {self.sortkey_stmt}
-        AS
-        {self.select_stmt};
-        ANALYZE {self.name};
-        """.replace(' ' * 8, '').format(self=self)
+        if config.database_type == 'redshift':
+            return """
+            DROP TABLE IF EXISTS {self.name} CASCADE;
+            CREATE TABLE {self.name} {self.distkey_stmt} {self.sortkey_stmt}
+            AS
+            {self.select_stmt};
+            ANALYZE {self.name};
+            """.replace(' ' * 8, '').format(self=self)
+        else:
+            return """
+            DROP TABLE IF EXISTS {self.name} CASCADE;
+            CREATE TABLE {self.name} {self.distkey_stmt} {self.sortkey_stmt}
+            AS
+            {self.select_stmt};
+            """.replace(' ' * 8, '').format(self=self)
+
 
     @property
     def materialize_view_stmt(self):
-        return """
-        CREATE SCHEMA IF NOT EXISTS {self.schema_prefix}{self.schema_name}{schema_suffix};
-        DROP TABLE IF EXISTS {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name} CASCADE;
-        CREATE TABLE {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name} {self.distkey_stmt} {self.sortkey_stmt}
-        AS
-        {self.select_stmt};
-        ANALYZE {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name};
-        DROP VIEW IF EXISTS {self.name} CASCADE;
-        CREATE VIEW {self.name}
-        AS
-        SELECT * FROM {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name};
-        """.replace(' ' * 8, '').format(self=self, schema_suffix='_mat')
+        if config.database_type == 'redshift':
+            return """
+            CREATE SCHEMA IF NOT EXISTS {self.schema_prefix}{self.schema_name}{schema_suffix};
+            DROP TABLE IF EXISTS {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name} CASCADE;
+            CREATE TABLE {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name} {self.distkey_stmt} {self.sortkey_stmt}
+            AS
+            {self.select_stmt};
+            ANALYZE {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name};
+            DROP VIEW IF EXISTS {self.name} CASCADE;
+            CREATE VIEW {self.name}
+            AS
+            SELECT * FROM {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name};
+            """.replace(' ' * 8, '').format(self=self, schema_suffix='_mat')
+        else:
+            return """
+            CREATE SCHEMA IF NOT EXISTS {self.schema_prefix}{self.schema_name}{schema_suffix};
+            DROP TABLE IF EXISTS {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name} CASCADE;
+            CREATE TABLE {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name} {self.distkey_stmt} {self.sortkey_stmt}
+            AS
+            {self.select_stmt};
+            DROP VIEW IF EXISTS {self.name} CASCADE;
+            CREATE VIEW {self.name}
+            AS
+            SELECT * FROM {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name};
+            """.replace(' ' * 8, '').format(self=self, schema_suffix='_mat')

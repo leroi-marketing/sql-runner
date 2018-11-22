@@ -1,0 +1,8 @@
+pandas
+matplotlib
+psycopg2
+boto3
+networkx
+sqlparse
+pydot
+snowflake-connector-python

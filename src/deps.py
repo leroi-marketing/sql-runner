@@ -3,39 +3,14 @@ import os
 import re
 
 import networkx as nx
-import sqlparse
 
-import sqlrunner.conn
-
-graphviz_path = 'C:/Program Files (x86)/Graphviz2.38/bin/'
+from utils import config, get_connection
 
 
 class Deps:
 
     def __init__(self):
-        self.cursor = sqlrunner.conn.get_connection().cursor()
-
-    def create_table_stmt(self, schema, table):
-        cmd = """
-            SELECT ddl
-            FROM lr_monitor.generate_tbl_ddl
-            WHERE schemaname='{schema}'
-            AND tablename='{table}'
-            ORDER BY seq""".format(**locals())
-        self.cursor.execute(cmd)
-        stmt = '\n'.join(row[0] for row in self.cursor).replace('\n\t,', ',\n\t')
-        return stmt
-
-    def create_view_stmt(self, schema, table):
-        cmd = """
-            SELECT ddl
-            FROM lr_monitor.generate_view_ddl
-            WHERE schemaname='{schema}'
-            AND viewname='{table}'""".format(**locals())
-        self.cursor.execute(cmd)
-        stmt = sqlparse.format(self.cursor.fetchall()[0][0].replace('`', ''),
-                               reindent=True, keyword_case='upper')
-        return stmt
+        self.cursor = get_connection().cursor()
 
     def get_tables(self):
         cmd = """
@@ -46,34 +21,49 @@ class Deps:
                    WHEN 'VIEW' THEN 'view'
                END
         FROM information_schema.tables
-        WHERE table_schema NOT IN ('pg_catalog', 'looker_scratch', 'information_schema')
+        WHERE table_schema NOT IN {exclude}
         ORDER BY table_schema,
-                 table_name;"""
+                 table_name;""".format(exclude=config.exclude_dependencies)
         self.cursor.execute(cmd)
         return self.cursor.fetchall()
 
     def clean_schemas(self):
-        cmd = """
-        SELECT schema_name
-        FROM information_schema.schemata
-        WHERE schema_name ~ '^zz_.*';"""
+        if config.database_type == 'redshift' or config.database_type == 'postgres':
+            cmd = """
+            SELECT schema_name
+            FROM information_schema.schemata
+            WHERE schema_name ~ '^zz_.*';"""
+        elif config.database_type == 'snowflake':
+            cmd = """
+            SELECT schema_name
+            FROM information_schema.schemata
+            WHERE regexp_like(schema_name, '^ZZ_.*');"""
         self.cursor.execute(cmd)
         for schema_name in self.cursor.fetchall():
             self.cursor.execute("DROP SCHEMA {} CASCADE;".format(schema_name[0]))
 
     def get_column_dict(self):
         column_dict = {}
-        self.cursor.execute("""
-        SELECT table_schema,
-               table_name,
-               column_name
-        FROM information_schema.COLUMNS
-        WHERE table_schema NOT IN ('pg_catalog', 'looker_scratch', 'information_schema')
-        ORDER BY table_schema,
-                 table_name,
-                 ordinal_position
-        """)
-        for key, iter in itertools.groupby(self.cursor.fetchall(), lambda row: '%s.%s' % row[0:2]):
+        rows = []
+        offset = 0
+        while True:
+            self.cursor.execute("""
+            SELECT table_schema,
+                   table_name,
+                   column_name
+            FROM information_schema.COLUMNS
+            WHERE table_schema NOT IN {exclude}
+            ORDER BY table_schema,
+                     table_name,
+                     ordinal_position LIMIT 1000 OFFSET {offset};
+            """.format(offset=offset, exclude=config.exclude_dependencies))
+            chunk = self.cursor.fetchall()
+            offset += 1000
+            if chunk:
+                rows.extend(chunk)
+            else:
+                break
+        for key, iter in itertools.groupby(rows, lambda row: '%s.%s' % row[0:2]):
             column_dict[key.lower()] = [row[2].lower() for row in iter]
         return column_dict
 
@@ -87,6 +77,15 @@ class Deps:
             return re.search(r'((=|\s|\(|\.|"){}(=|\s|\)|\.|")|select\s+\*)'.format(column_name), select_stmt.lower())
 
         column_dict = self.get_column_dict()
+        self.cursor.execute('CREATE SCHEMA IF NOT EXISTS {};'.format(schema))
+        self.cursor.execute("""
+        CREATE TABLE IF NOT EXISTS {}.table_deps 
+        (
+          schema_name   VARCHAR,
+          table_name    VARCHAR,
+          column_name   VARCHAR,
+          file_path     VARCHAR
+        );""".format(schema))
         self.cursor.execute('TRUNCATE {}.table_deps;'.format(schema))
         values = []
         template = "('{schema_name}','{table_name}',{column_name},'{rel_file_path}')"
@@ -107,7 +106,7 @@ class Deps:
                                         has_column_name(column_name, select_stmt)]
                                 except KeyError:
                                     print("{} contains unknown table '{}'".format(file_path, dep_table))
-                                rel_file_path = file_path.replace('\\', '/').split('/sql/')[1]
+                                rel_file_path = file_path.replace('\\', '/').split(config.sql_path)[1]
                                 for column_name in column_names:
                                     values.append(template.format(**locals()))
         if values:
@@ -118,7 +117,7 @@ class Deps:
             self.cursor.execute(insert_stmt)
 
     def viz_deps(self, schema):
-        os.environ["PATH"] += os.pathsep + graphviz_path
+        os.environ["PATH"] += os.pathsep + config.graphviz_path
         cmd = """
         SELECT DISTINCT schema_name, table_name, file_path
         FROM {schema}.table_deps
@@ -133,4 +132,4 @@ class Deps:
         g.add_nodes_from(nodes)
         edges = [(from_, to_, {'fontsize': 10.0, 'penwidth': 1}) for from_, to_ in results]
         g.add_edges_from(edges)
-        nx.drawing.nx_pydot.to_pydot(g).write_svg('output/sqlrunner/map.svg')
+        nx.drawing.nx_pydot.to_pydot(g).write_svg('{path}/map.svg'.format(path=config.sql_path))
