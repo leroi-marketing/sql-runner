@@ -1,11 +1,11 @@
 {
-   "sql_path": "sql",
+   "sql_path": "",
    "database_type": "postgres",
    "auth": {
-     "user": "postgres",
-     "password": "admin",
-     "dbname": "postgres",
-	 "host": "localhost",
+     "user": "",
+     "password": "",
+     "dbname": "",
+	 "host": "",
 	 "port": "5432"
    },
   "deps_schema": "monitor",
