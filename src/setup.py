@@ -7,7 +7,7 @@ setup(
     package_dir={'': 'src'},
     url='',
     license='',
-    author='LeROI',
+    author='LEROI',
     author_email='',
     description='SQL runner for postgres, redshift and snowflake'
 )

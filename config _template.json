@@ -1,0 +1,17 @@
+{
+   "sql_path": "",
+   "database_type": "snowflake / redshift / postgres",
+   "auth": {
+     "user": "",
+     "password": "",
+     "account": "",
+	 "dbname": "postgres and redshift only",
+	 "host": "postgres and redshift only",
+	 "port": "postgres and redshift only"
+     "database": "snowflake only"
+   },
+  "deps_schema": "monitor",
+  "test_schema_prefix" : "zz_",
+  "exclude_dependencies": "('information_schema')",
+  "graphviz_path": "C:/Program Files (x86)/Graphviz2.38/bin/"
+}

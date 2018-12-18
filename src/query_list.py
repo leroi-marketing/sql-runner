@@ -34,19 +34,20 @@ class QueryList(list):
                 csv_string.append(f.read().strip())
         return QueryList('\n'.join(csv_string))
 
-    def test(self, schema_prefix='zz_'):
+    def test(self, schema_prefix=config.test_schema_prefix):
         schema_names = set(query.schema_name for query in self)
+        full_table_names = set(query.full_table_name for query in self)
         for schema_name in schema_names:
             statements = """DROP SCHEMA IF EXISTS {schema_prefix}{schema_name} CASCADE;
-                         CREATE SCHEMA {schema_prefix}{schema_name};
+                         CREATE SCHEMA {schema_prefix}{schema_name}
                          """.format(**locals())
             for stmt in statements.split(';'):
                 self.cursor.execute(stmt)
         for query in self:
             query.schema_prefix = schema_prefix
-            for schema_name in schema_names:
+            for full_table_name in full_table_names:
                 query.action = 'v'
-                query.query = query.query.replace(schema_name + '.', schema_prefix + schema_name + '.')
+                query.query = query.query.replace(' ' + full_table_name, ' ' + schema_prefix + full_table_name)
         self.execute()
 
     def execute(self):
@@ -67,7 +68,7 @@ class QueryList(list):
                             """.replace(4 * 7 * ' ', '').format(msg=traceback.format_exc(), stmt=stmt, query=query)
                             print(msg)
                             exit(1)
-                print(datetime.datetime.now()-start)
+                print(datetime.datetime.now() - start)
 
 
 class Query(object):
@@ -78,6 +79,7 @@ class Query(object):
         self.table_name = table_name.strip()
         self.action = action.strip()
         self.sql_path = config.sql_path
+        self.full_table_name = self.schema_name + '.' + self.table_name
 
         path = '{self.sql_path}/{self.schema_name}/{self.table_name}.sql'.format(self=self)
         self.path = os.path.abspath(os.path.normpath(path))
@@ -85,14 +87,7 @@ class Query(object):
         if not os.path.isfile(self.path):
             raise ValueError('file {} does not exist'.format(self.path))
         with open(self.path, 'r') as f:
-            self.query = ''
-            raw_query = f.readlines()
-            for line in raw_query:
-                # strip comments
-                comment = re.search('--', line)
-                if comment:
-                    line = line[:comment.start()]
-                self.query = self.query + line
+            self.query = f.read()
 
     def __repr__(self):
         return '{self.schema_prefix}{self.schema_name}.{self.table_name} > {self.action}'.format(self=self)
@@ -197,11 +192,10 @@ class Query(object):
         else:
             return """
             DROP TABLE IF EXISTS {self.name} CASCADE;
-            CREATE TABLE {self.name} {self.distkey_stmt} {self.sortkey_stmt}
+            CREATE TABLE {self.name}
             AS
             {self.select_stmt};
             """.replace(' ' * 8, '').format(self=self)
-
 
     @property
     def materialize_view_stmt(self):
@@ -222,7 +216,7 @@ class Query(object):
             return """
             CREATE SCHEMA IF NOT EXISTS {self.schema_prefix}{self.schema_name}{schema_suffix};
             DROP TABLE IF EXISTS {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name} CASCADE;
-            CREATE TABLE {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name} {self.distkey_stmt} {self.sortkey_stmt}
+            CREATE TABLE {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name}
             AS
             {self.select_stmt};
             DROP VIEW IF EXISTS {self.name} CASCADE;

@@ -1,14 +1,14 @@
 {
-   "sql_path": "sql",
-   "database_type": "postgres",
+   "sql_path": "../client-foodspring/data-pipeline/sql/snowflake/foodspring",
+   "database_type": "snowflake",
    "auth": {
-     "user": "postgres",
-     "password": "admin",
-     "dbname": "postgres",
-	 "host": "localhost",
-	 "port": "5432"
+     "user": "leroi",
+     "password": "8kchN,>@aR)MuMf2UXd8qyr&",
+     "account": "qz78593.eu-central-1",
+     "database": "foodspring"
    },
   "deps_schema": "monitor",
+  "test_schema_prefix" : "zz_",
   "exclude_dependencies": "('information_schema')",
   "graphviz_path": "C:/Program Files (x86)/Graphviz2.38/bin/"
 }

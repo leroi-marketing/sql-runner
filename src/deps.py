@@ -32,12 +32,12 @@ class Deps:
             cmd = """
             SELECT schema_name
             FROM information_schema.schemata
-            WHERE schema_name ~ '^zz_.*';"""
+            WHERE schema_name ~ '^{prefix}.*';""".format(prefix=config.test_schema_prefix)
         elif config.database_type == 'snowflake':
             cmd = """
             SELECT schema_name
             FROM information_schema.schemata
-            WHERE regexp_like(schema_name, '^ZZ_.*');"""
+            WHERE regexp_like(schema_name, '^{prefix}.*');""".format(prefix=config.test_schema_prefix.upper())
         self.cursor.execute(cmd)
         for schema_name in self.cursor.fetchall():
             self.cursor.execute("DROP SCHEMA {} CASCADE;".format(schema_name[0]))
