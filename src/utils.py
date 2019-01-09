@@ -3,7 +3,7 @@ from snowflake import connector
 import json
 from types import SimpleNamespace
 
-with open('config.json')as f:
+with open('auth/config.json')as f:
     config = SimpleNamespace(**json.load(f))
 
 
