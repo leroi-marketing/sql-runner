@@ -76,6 +76,7 @@ class Query(object):
     def __init__(self, schema_name, table_name, action):
         self.schema_name = schema_name.strip()
         self.schema_prefix = ''
+        self.schema_suffix = '_mat'
         self.table_name = table_name.strip()
         self.action = action.strip()
         self.sql_path = config.sql_path
@@ -173,6 +174,7 @@ class Query(object):
     @property
     def create_view_stmt(self):
         return """
+        DROP TABLE IF EXISTS {self.schema_name}{self.schema_suffix}.{self.table_name} CASCADE;
         DROP VIEW IF EXISTS {self.name} CASCADE;
         CREATE VIEW {self.name}
         AS
@@ -183,6 +185,7 @@ class Query(object):
     def create_table_stmt(self):
         if config.database_type == 'redshift':
             return """
+            DROP TABLE IF EXISTS {self.schema_name}{self.schema_suffix}.{self.table_name} CASCADE;
             DROP TABLE IF EXISTS {self.name} CASCADE;
             CREATE TABLE {self.name} {self.distkey_stmt} {self.sortkey_stmt}
             AS
@@ -201,26 +204,26 @@ class Query(object):
     def materialize_view_stmt(self):
         if config.database_type == 'redshift':
             return """
-            CREATE SCHEMA IF NOT EXISTS {self.schema_prefix}{self.schema_name}{schema_suffix};
-            DROP TABLE IF EXISTS {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name} CASCADE;
-            CREATE TABLE {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name} {self.distkey_stmt} {self.sortkey_stmt}
+            CREATE SCHEMA IF NOT EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix};
+            DROP TABLE IF EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name} CASCADE;
+            CREATE TABLE {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name} {self.distkey_stmt} {self.sortkey_stmt}
             AS
             {self.select_stmt};
-            ANALYZE {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name};
+            ANALYZE {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name};
             DROP VIEW IF EXISTS {self.name} CASCADE;
             CREATE VIEW {self.name}
             AS
-            SELECT * FROM {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name};
-            """.replace(' ' * 8, '').format(self=self, schema_suffix='_mat')
+            SELECT * FROM {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name};
+            """.replace(' ' * 8, '').format(self=self)
         else:
             return """
-            CREATE SCHEMA IF NOT EXISTS {self.schema_prefix}{self.schema_name}{schema_suffix};
-            DROP TABLE IF EXISTS {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name} CASCADE;
-            CREATE TABLE {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name}
+            CREATE SCHEMA IF NOT EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix};
+            DROP TABLE IF EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name} CASCADE;
+            CREATE TABLE {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name}
             AS
             {self.select_stmt};
             DROP VIEW IF EXISTS {self.name} CASCADE;
             CREATE VIEW {self.name}
             AS
-            SELECT * FROM {self.schema_prefix}{self.schema_name}{schema_suffix}.{self.table_name};
-            """.replace(' ' * 8, '').format(self=self, schema_suffix='_mat')
+            SELECT * FROM {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name};
+            """.replace(' ' * 8, '').format(self=self)
