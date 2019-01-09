@@ -2,7 +2,4 @@
 venv/
 src/__pycache__
 config.json
-ergo
-foodspring
-internal
 testing
