@@ -11,7 +11,6 @@
      "database": "snowflake only"
    },
   "deps_schema": "monitor",
-  "test_schema_prefix" : "zz_",
   "exclude_dependencies": "('information_schema')",
   "graphviz_path": "C:/Program Files (x86)/Graphviz2.38/bin/"
 }

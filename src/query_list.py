@@ -7,7 +7,16 @@ import traceback
 import psycopg2
 import snowflake.connector
 
-from utils import config, get_connection
+
+def get_connection(config):
+    if config.database_type == 'snowflake':
+        connection = snowflake.connector.connect(**config.auth)
+    elif config.database_type == 'redshift' or config.database_type == 'postgres':
+        connection = psycopg2.connect(**config.auth, connect_timeout=3)
+    else:
+        raise ValueError('Invalid database: {}! Value must be snowflake, redshift or postgres'.format(config.database))
+    connection.autocommit = True
+    return connection
 
 
 class QueryList(list):
@@ -18,24 +27,24 @@ class QueryList(list):
         'm': 'materialize_view_stmt'
     }
 
-    def __init__(self, csv_string):
-        self.cursor = get_connection().cursor()
+    def __init__(self, config, csv_string):
+        self.cursor = get_connection(config).cursor()
         for query in csv.DictReader(io.StringIO(csv_string.strip()), delimiter=';'):
-            self.append(Query(**query))
+            self.append(Query(config, **query))
 
     @staticmethod
-    def from_csv_files(path, csv_files):
+    def from_csv_files(config, csv_files):
         if not isinstance(csv_files, list):
             csv_files = [csv_files]
         print('read query lists from: {}'.format(', '.join(f for f in csv_files)))
         csv_string = ['schema_name;table_name;action']
         for file in csv_files:
-            file_path = '{}/{}.csv'.format(path, file)
+            file_path = '{}/{}.csv'.format(config.sql_path, file)
             with open(file_path, 'r') as f:
                 csv_string.append(f.read().strip())
-        return QueryList('\n'.join(csv_string))
+        return QueryList(config, '\n'.join(csv_string))
 
-    def test(self, schema_prefix=config.test_schema_prefix):
+    def test(self, schema_prefix='zz_'):
         schema_names = set(query.schema_name for query in self)
         full_table_names = set(query.full_table_name for query in self)
         for schema_name in schema_names:
@@ -61,7 +70,9 @@ class QueryList(list):
                     if stmt.strip():
                         try:
                             self.cursor.execute(stmt)
-                        except (psycopg2.ProgrammingError, psycopg2.InternalError, snowflake.connector.errors.ProgrammingError):
+                        except (
+                                psycopg2.ProgrammingError, psycopg2.InternalError,
+                                snowflake.connector.errors.ProgrammingError):
                             msg = """
                             ERROR: executing '{query.name}':
                             SQL path "{query.path}"
@@ -74,7 +85,8 @@ class QueryList(list):
 
 class Query(object):
 
-    def __init__(self, schema_name, table_name, action):
+    def __init__(self, config, schema_name, table_name, action):
+        self.config = config
         self.schema_name = schema_name.strip()
         self.schema_prefix = ''
         self.schema_suffix = '_mat'
@@ -132,7 +144,7 @@ class Query(object):
 
     @property
     def distkey_stmt(self):
-        if config.database_type == 'redshift':
+        if self.config.database_type == 'redshift':
             match = re.search(r'/\*.*(distkey\s*\([^\()]*\)).*\**/', self.query, re.DOTALL | re.IGNORECASE)
             if match is not None:
                 if match.group(1) == 'DISTKEY ()':
@@ -147,7 +159,7 @@ class Query(object):
 
     @property
     def sortkey_stmt(self):
-        if config.database_type == 'redshift':
+        if self.config.database_type == 'redshift':
             match = re.search(r'/\*.*((compound\s*sortkey|interleaved\s*sortkey)\s*\([^\()]*\)).*\**/', self.query,
                               re.DOTALL | re.IGNORECASE)
             if match is None:
@@ -184,7 +196,7 @@ class Query(object):
 
     @property
     def create_table_stmt(self):
-        if config.database_type == 'redshift':
+        if self.config.database_type == 'redshift':
             return """
             CREATE SCHEMA IF NOT EXISTS {self.schema_name}{self.schema_suffix};
             DROP TABLE IF EXISTS {self.schema_name}{self.schema_suffix}.{self.table_name} CASCADE;
@@ -204,7 +216,7 @@ class Query(object):
 
     @property
     def materialize_view_stmt(self):
-        if config.database_type == 'redshift':
+        if self.config.database_type == 'redshift':
             return """
             CREATE SCHEMA IF NOT EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix};
             DROP TABLE IF EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name} CASCADE;

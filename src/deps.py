@@ -3,15 +3,14 @@ import os
 import re
 
 import networkx as nx
-
-from utils import config, get_connection
+import query_list
 
 
 class Dependencies:
 
-    def __init__(self, path):
-        self.path = path
-        self.cursor = get_connection().cursor()
+    def __init__(self, config):
+        self.config = config
+        self.cursor = query_list.get_connection(config).cursor()
 
         def get_query_sources(select_stmt):
             return set(str(match) for match in
@@ -19,7 +18,7 @@ class Dependencies:
                                   re.DOTALL))
 
         self.values = []
-        for root, _, file_names in os.walk(path):
+        for root, _, file_names in os.walk(config.sql_path):
             for file_name in file_names:
                 if file_name[-4:] == '.sql':
                     file_path = os.path.normpath(os.path.join(root, file_name))
@@ -37,19 +36,18 @@ class Dependencies:
                                     'dependent_table': dependent_table
                                 })
 
-    @staticmethod
-    def clean_schemas():
-        cursor = get_connection().cursor()
-        if config.database_type == 'redshift' or config.database_type == 'postgres':
+    def clean_schemas(self):
+        cursor = query_list.get_connection(self.config).cursor()
+        if self.config.database_type == 'redshift' or self.config.database_type == 'postgres':
             cmd = """
             SELECT schema_name
             FROM information_schema.schemata
-            WHERE schema_name ~ '^{prefix}.*';""".format(prefix=config.test_schema_prefix)
-        elif config.database_type == 'snowflake':
+            WHERE schema_name ~ '^{prefix}.*';""".format(prefix='zz_')
+        elif self.config.database_type == 'snowflake':
             cmd = """
             SELECT schema_name
             FROM information_schema.schemata
-            WHERE regexp_like(schema_name, '^{prefix}.*');""".format(prefix=config.test_schema_prefix.upper())
+            WHERE regexp_like(schema_name, '^{prefix}.*');""".format(prefix='zz_'.upper())
         cursor.execute(cmd)
         for schema_name in cursor.fetchall():
             cursor.execute("DROP SCHEMA {} CASCADE;".format(schema_name[0]))
@@ -83,7 +81,7 @@ class Dependencies:
         g = nx.MultiDiGraph()
         edges = [(from_, to_, {'fontsize': 10.0, 'penwidth': 1}) for from_, to_ in results]
         g.add_edges_from(edges)
-        nx.drawing.nx_pydot.to_pydot(g).write_svg('{path}/dependencies.svg'.format(path=config.sql_path))
+        nx.drawing.nx_pydot.to_pydot(g).write_svg('{path}/dependencies.svg'.format(path=self.config.sql_path))
 
     #
     # The following column related code is not used and might be re-activated
@@ -103,7 +101,7 @@ class Dependencies:
             ORDER BY table_schema,
                      table_name,
                      ordinal_position LIMIT 1000 OFFSET {offset};
-            """.format(offset=offset, exclude=config.exclude_dependencies))
+            """.format(offset=offset, exclude=self.config.exclude_dependencies))
             chunk = self.cursor.fetchall()
             offset += 1000
             if chunk:
@@ -125,7 +123,7 @@ class Dependencies:
         FROM information_schema.tables
         WHERE table_schema NOT IN {exclude}
         ORDER BY table_schema,
-                 table_name;""".format(exclude=config.exclude_dependencies)
+                 table_name;""".format(exclude=self.config.exclude_dependencies)
         self.cursor.execute(cmd)
         return self.cursor.fetchall()
 
@@ -142,5 +140,4 @@ class Dependencies:
                 has_column_name(column_name, select_stmt)]
         except KeyError:
             print("{} contains unknown table '{}'".format(file_path, dep_table))
-        rel_file_path = file_path.replace('\\', '/').split(config.sql_path)[1]
         return [template.format(**locals()) for column_name in column_names]
