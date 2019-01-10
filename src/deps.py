@@ -81,7 +81,7 @@ class Dependencies:
         g = nx.MultiDiGraph()
         edges = [(from_, to_, {'fontsize': 10.0, 'penwidth': 1}) for from_, to_ in results]
         g.add_edges_from(edges)
-        nx.drawing.nx_pydot.to_pydot(g).write_svg('{path}/map.svg'.format(path=config.sql_path))
+        nx.drawing.nx_pydot.to_pydot(g).write_svg('{path}/dependencies.svg'.format(path=config.sql_path))
 
     #
     # The following column related code is not used and might be re-activated
