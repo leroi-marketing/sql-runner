@@ -37,7 +37,9 @@ class Dependencies:
                                     'dependent_table': dependent_table
                                 })
 
-    def clean_schemas(self):
+    @staticmethod
+    def clean_schemas():
+        cursor = get_connection().cursor()
         if config.database_type == 'redshift' or config.database_type == 'postgres':
             cmd = """
             SELECT schema_name
@@ -48,9 +50,9 @@ class Dependencies:
             SELECT schema_name
             FROM information_schema.schemata
             WHERE regexp_like(schema_name, '^{prefix}.*');""".format(prefix=config.test_schema_prefix.upper())
-        self.cursor.execute(cmd)
-        for schema_name in self.cursor.fetchall():
-            self.cursor.execute("DROP SCHEMA {} CASCADE;".format(schema_name[0]))
+        cursor.execute(cmd)
+        for schema_name in cursor.fetchall():
+            cursor.execute("DROP SCHEMA {} CASCADE;".format(schema_name[0]))
 
     def save(self, monitor_schema):
         if not self.values:

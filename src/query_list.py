@@ -5,6 +5,7 @@ import re
 import datetime
 import traceback
 import psycopg2
+import snowflake.connector
 
 from utils import config, get_connection
 
@@ -60,7 +61,7 @@ class QueryList(list):
                     if stmt.strip():
                         try:
                             self.cursor.execute(stmt)
-                        except (psycopg2.ProgrammingError, psycopg2.InternalError):
+                        except (psycopg2.ProgrammingError, psycopg2.InternalError, snowflake.connector.errors.ProgrammingError):
                             msg = """
                             ERROR: executing '{query.name}':
                             SQL path "{query.path}"
@@ -84,7 +85,6 @@ class Query(object):
 
         path = '{self.sql_path}/{self.schema_name}/{self.table_name}.sql'.format(self=self)
         self.path = os.path.abspath(os.path.normpath(path))
-        print(self.path)
         if not os.path.isfile(self.path):
             raise ValueError('file {} does not exist'.format(self.path))
         with open(self.path, 'r') as f:
@@ -174,6 +174,7 @@ class Query(object):
     @property
     def create_view_stmt(self):
         return """
+        CREATE SCHEMA IF NOT EXISTS {self.schema_name}{self.schema_suffix};
         DROP TABLE IF EXISTS {self.schema_name}{self.schema_suffix}.{self.table_name} CASCADE;
         DROP VIEW IF EXISTS {self.name} CASCADE;
         CREATE VIEW {self.name}
@@ -185,6 +186,7 @@ class Query(object):
     def create_table_stmt(self):
         if config.database_type == 'redshift':
             return """
+            CREATE SCHEMA IF NOT EXISTS {self.schema_name}{self.schema_suffix};
             DROP TABLE IF EXISTS {self.schema_name}{self.schema_suffix}.{self.table_name} CASCADE;
             DROP TABLE IF EXISTS {self.name} CASCADE;
             CREATE TABLE {self.name} {self.distkey_stmt} {self.sortkey_stmt}

@@ -14,7 +14,7 @@ if __name__ == '__main__':
         query_list.QueryList.from_csv_files(config.sql_path, args.execute).execute()
     elif args.test:
         query_list.QueryList.from_csv_files(config.sql_path, args.test).test()
-        deps.Dependencies().clean_schemas()
+        deps.Dependencies.clean_schemas()
     elif args.deps:
         schema = config.deps_schema
         d = deps.Dependencies(config.sql_path)
