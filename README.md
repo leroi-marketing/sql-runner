@@ -21,8 +21,9 @@ Pull repository and install dependencies
 ```
 git pull https://github.com/leroi-marketing/sql-runner.git
 cd sql-runner
-python3 -m pip install --upgrade pip
-python3 -m pip install -r requirements.txt
+sudo python3 -m pip install --upgrade pip
+sudo python3 -m pip install -r requirements.txt
+
 ```
 Make the runner executable
 ```
