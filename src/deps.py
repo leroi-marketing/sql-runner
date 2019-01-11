@@ -13,9 +13,11 @@ class Dependencies:
         self.cursor = query_list.get_connection(config).cursor()
 
         def get_query_sources(select_stmt):
-            return set(str(match) for match in
-                       re.findall(r'(?:from|join)\s*([a-z0-9_]*\.[a-z0-9_]*)(?:\s|;|$)', select_stmt.lower(),
-                                  re.DOTALL))
+            regex_schema_table = r'(?:from|join)\s*([a-z0-9_]*\.[a-z0-9_]*)(?:\s|;|$)'
+            regex_db_schema_table = r'(?:from|join)\s*([a-z0-9_]*\.[a-z0-9_]*\.[a-z0-9_]*)(?:\s|;|$)'
+            schema_table = set(str(match) for match in re.findall(regex_schema_table, select_stmt.lower(), re.DOTALL))
+            db_schema_table = set(str(match) for match in re.findall(regex_db_schema_table, select_stmt.lower(), re.DOTALL))
+            return schema_table | db_schema_table
 
         self.values = []
         for root, _, file_names in os.walk(config.sql_path):
@@ -28,7 +30,8 @@ class Dependencies:
                             dependent_schema = os.path.basename(os.path.normpath(root))
                             dependent_table = file_name[:-4]
                             for source in get_query_sources(select_stmt):
-                                source_schema, source_table = source.split('.')
+                                source_schema = source.split('.')[-2]
+                                source_table = source.split('.')[-1]
                                 self.values.append({
                                     'source_schema': source_schema,
                                     'source_table': source_table,
