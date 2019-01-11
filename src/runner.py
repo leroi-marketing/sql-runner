@@ -2,6 +2,7 @@ import argparse
 import query_list
 import deps
 import json
+import os
 from types import SimpleNamespace
 
 if __name__ == '__main__':
@@ -14,6 +15,7 @@ if __name__ == '__main__':
 
     with open(args.config) as f:
         config = SimpleNamespace(**json.load(f))
+        os.environ["PATH"] += os.pathsep + config.graphviz_path
 
     if args.execute:
         query_list.QueryList.from_csv_files(config, args.execute).execute()
