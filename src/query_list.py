@@ -61,6 +61,7 @@ class QueryList(list):
         self.execute()
 
     def execute(self):
+        run_start = datetime.datetime.now()
         for query in self:
             print(query)
             if query.action in QueryList.actions:
@@ -81,6 +82,7 @@ class QueryList(list):
                             print(msg)
                             exit(1)
                 print(datetime.datetime.now() - start)
+        print('Run finished in {}'.format(datetime.datetime.now() - run_start))
 
 
 class Query(object):
