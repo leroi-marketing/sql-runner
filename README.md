@@ -19,8 +19,10 @@ The supported databases are Redshift, Snowflake and Postgres.
 ### Installation
 Pull repository and install dependencies
 ```
+sudo apt install git
 git clone https://github.com/leroi-marketing/sql-runner.git
 cd sql-runner
+sudo apt install python3-pip
 sudo python3 -m pip install --upgrade pip
 sudo python3 -m pip install -r requirements.txt
 sudo apt install graphviz

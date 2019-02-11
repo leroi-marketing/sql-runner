@@ -40,18 +40,18 @@ class Dependencies:
                                     'dependent_table': dependent_table
                                 })
 
-    def clean_schemas(self):
+    def clean_schemas(self, prefix):
         cursor = query_list.get_connection(self.config).cursor()
         if self.config.database_type == 'redshift' or self.config.database_type == 'postgres':
             cmd = """
             SELECT schema_name
             FROM information_schema.schemata
-            WHERE schema_name ~ '^{prefix}.*';""".format(prefix='zz_')
+            WHERE schema_name ~ '^{prefix}.*';""".format(prefix=prefix)
         elif self.config.database_type == 'snowflake':
             cmd = """
             SELECT schema_name
             FROM information_schema.schemata
-            WHERE regexp_like(schema_name, '^{prefix}.*');""".format(prefix='zz_'.upper())
+            WHERE regexp_like(schema_name, '^{prefix}.*');""".format(prefix=prefix.upper())
         cursor.execute(cmd)
         for schema_name in cursor.fetchall():
             cursor.execute("DROP SCHEMA {} CASCADE;".format(schema_name[0]))

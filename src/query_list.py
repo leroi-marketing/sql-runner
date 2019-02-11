@@ -29,6 +29,7 @@ class QueryList(list):
 
     def __init__(self, config, csv_string):
         self.cursor = get_connection(config).cursor()
+        self.config =config
         for query in csv.DictReader(io.StringIO(csv_string.strip()), delimiter=';'):
             self.append(Query(config, **query))
 
@@ -44,7 +45,8 @@ class QueryList(list):
                 csv_string.append(f.read().strip())
         return QueryList(config, '\n'.join(csv_string))
 
-    def test(self, schema_prefix='zz_'):
+    def test(self):
+        schema_prefix = self.config.test_schema_prefix
         schema_names = set(query.schema_name for query in self)
         full_table_names = set(query.full_table_name for query in self)
         for schema_name in schema_names:
@@ -57,6 +59,22 @@ class QueryList(list):
             query.schema_prefix = schema_prefix
             for full_table_name in full_table_names:
                 query.action = 'v'
+                query.query = query.query.replace(' ' + full_table_name, ' ' + schema_prefix + full_table_name)
+        self.execute()
+
+    def stage(self, schema_prefix='test_'):
+        schema_names = set(query.schema_name for query in self)
+        full_table_names = set(query.full_table_name for query in self)
+        for schema_name in schema_names:
+            statements = """DROP SCHEMA IF EXISTS {schema_prefix}{schema_name} CASCADE;
+                         CREATE SCHEMA {schema_prefix}{schema_name}
+                         """.format(**locals())
+            for stmt in statements.split(';'):
+                self.cursor.execute(stmt)
+        for query in self:
+            query.schema_prefix = schema_prefix
+            for full_table_name in full_table_names:
+                query.action = 't'
                 query.query = query.query.replace(' ' + full_table_name, ' ' + schema_prefix + full_table_name)
         self.execute()
 
