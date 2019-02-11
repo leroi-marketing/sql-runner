@@ -13,6 +13,7 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--staging', nargs='*')
     parser.add_argument('-b', '--database', nargs='?', default=False)
     parser.add_argument('-d', '--deps', action='store_const', const=True, default=False)
+    parser.add_argument('-l', '--clean', nargs='?', default='test_')
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -21,6 +22,7 @@ if __name__ == '__main__':
 
     if args.database:
         config.database = args.database
+        config.sql_path = config.sql_path + args.database
 
     if args.execute:
         query_list.QueryList.from_csv_files(config, args.execute).execute()
