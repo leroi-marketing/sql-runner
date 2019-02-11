@@ -14,8 +14,8 @@ class Dependencies:
         self.cursor = query_list.get_connection(config).cursor()
 
         def get_query_sources(select_stmt):
-            regex_schema_table = r'(?:from|join)\s*([a-z0-9_]*\.[a-z0-9_]*)(?:\s|;|$)'
-            regex_db_schema_table = r'(?:from|join)\s*([a-z0-9_]*\.[a-z0-9_]*\.[a-z0-9_]*)(?:\s|;|$)'
+            regex_schema_table = r'(?:from|join)\s*([a-z0-9_]*\.[a-z0-9_]*)(?:\s|;|,|$)'
+            regex_db_schema_table = r'(?:from|join)\s*([a-z0-9_]*\.[a-z0-9_]*\.[a-z0-9_]*)(?:\s|;|,|$)'
             schema_table = set(str(match) for match in re.findall(regex_schema_table, select_stmt.lower(), re.DOTALL))
             db_schema_table = set(str(match) for match in re.findall(regex_db_schema_table, select_stmt.lower(), re.DOTALL))
             return schema_table | db_schema_table
