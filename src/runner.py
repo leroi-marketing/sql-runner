@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
     if args.database:
         config.database = args.database
-        config.sql_path = config.sql_path + args.database
+        config.sql_path = config.sql_path + args.database.lower()
 
     if args.execute:
         query_list.QueryList.from_csv_files(config, args.execute).execute()

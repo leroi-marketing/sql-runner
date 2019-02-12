@@ -31,7 +31,8 @@ class QueryList(list):
         self.cursor = get_connection(config).cursor()
         self.config = config
         for query in csv.DictReader(io.StringIO(csv_string.strip()), delimiter=';'):
-            self.append(Query(config, **query))
+            if not query['schema_name'].startswith('#'):
+                self.append(Query(config, **query))
 
     @staticmethod
     def from_csv_files(config, csv_files):
