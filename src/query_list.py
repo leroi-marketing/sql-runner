@@ -29,7 +29,7 @@ class QueryList(list):
 
     def __init__(self, config, csv_string):
         self.cursor = get_connection(config).cursor()
-        self.config =config
+        self.config = config
         for query in csv.DictReader(io.StringIO(csv_string.strip()), delimiter=';'):
             self.append(Query(config, **query))
 

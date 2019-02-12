@@ -7,13 +7,13 @@ from types import SimpleNamespace
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Parse arguments SQL runner.')
-    parser.add_argument('-c', '--config', nargs='?', default='auth/config.json')
-    parser.add_argument('-e', '--execute', nargs='*')
-    parser.add_argument('-t', '--test', nargs='*')
-    parser.add_argument('-s', '--staging', nargs='*')
-    parser.add_argument('-b', '--database', nargs='?', default=False)
-    parser.add_argument('-d', '--deps', action='store_const', const=True, default=False)
-    parser.add_argument('-l', '--clean', nargs='?', default='test_')
+    parser.add_argument('--config', nargs='?', default='auth/config.json')
+    parser.add_argument('--execute', nargs='*')
+    parser.add_argument('--test', nargs='*')
+    parser.add_argument('--deps', action='store_const', const=True, default=False)
+    parser.add_argument('--staging', nargs='*')
+    parser.add_argument('--database', nargs='?', default=False)
+    parser.add_argument('--clean', nargs='?', default='test_')
     args = parser.parse_args()
 
     with open(args.config) as f:
