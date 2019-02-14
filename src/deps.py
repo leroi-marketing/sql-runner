@@ -85,10 +85,10 @@ class Dependencies:
         g = nx.MultiDiGraph()
         edges = [(from_, to_, {'fontsize': 10.0, 'penwidth': 1}) for from_, to_ in results]
         g.add_edges_from(edges)
-        nx.drawing.nx_pydot.to_pydot(g).write_svg('{path}/dependencies.svg'.format(path=self.config.sql_path))
+        nx.drawing.nx_pydot.to_pydot(g).write_svg('dependencies.svg'.format(path=self.config.sql_path))
         if self.config.s3_bucket:
             s3 = boto3.resource('s3')
-            data = open('{path}/dependencies.svg'.format(path=self.config.sql_path), 'rb')
+            data = open('dependencies.svg'.format(path=self.config.sql_path), 'rb')
             s3.Bucket(self.config.s3_bucket).put_object(Key='{}/dependencies.svg'.format(self.config.s3_folder), Body=data)
 
     #
