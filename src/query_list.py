@@ -110,7 +110,7 @@ class Query(object):
         self.config = config
         self.schema_name = schema_name.strip()
         self.schema_prefix = ''
-        self.schema_suffix = '_mat'
+        self.schema_suffix = ''
         self.table_name = table_name.strip()
         self.action = action.strip()
         self.sql_path = config.sql_path
