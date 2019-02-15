@@ -1,4 +1,3 @@
-import itertools
 import os
 import re
 
@@ -79,73 +78,34 @@ class Dependencies:
         self.cursor.execute(insert_stmt)
 
     def viz(self):
-        results = [('{source_schema}.{source_table}'.format(**item),
-                    '{dependent_schema}.{dependent_table}'.format(**item)
-                    ) for item in self.values]
+        def key(s):
+            s = s.split('.')[0]
+            pos = s.find('_') + 1
+            return (s, s[:pos])[pos > 0]
+
+        os.environ["PATH"] += os.pathsep + self.config.graphviz_path
+        cmd = """
+        SELECT DISTINCT schema_name, table_name, file_path
+        FROM {schema}.table_deps
+        WHERE file_path !~ '({schema}|admin)';
+        """.format(schema=self.config.deps_schema)
+        self.cursor.execute(cmd)
+        results = [('{}.{}'.format(*line[0:2]),
+                    line[2].split('.')[0].replace('/', '.'))
+                   for line in self.cursor.fetchall()]
         g = nx.MultiDiGraph()
+        nodes = [(from_, {}) for from_, _ in results]
+        g.add_nodes_from(nodes)
         edges = [(from_, to_, {'fontsize': 10.0, 'penwidth': 1}) for from_, to_ in results]
         g.add_edges_from(edges)
-        nx.drawing.nx_pydot.to_pydot(g).write_svg('dependencies.svg'.format(path=self.config.sql_path))
+        for node in g.nodes:
+            g.node[node].update({
+                'fillcolor': self.config.colors.get(key(node), 'white'),
+                'shape': self.config.shapes.get(key(node), 'oval'),
+                'style': 'filled'
+            })
+        nx.drawing.nx_pydot.to_pydot(g).write_svg('dependencies.svg')
         if self.config.s3_bucket:
             s3 = boto3.resource('s3')
-            data = open('dependencies.svg'.format(path=self.config.sql_path), 'rb')
+            data = open('dependencies.svg', 'rb')
             s3.Bucket(self.config.s3_bucket).put_object(Key='{}/dependencies.svg'.format(self.config.s3_folder), Body=data)
-
-    #
-    # The following column related code is not used and might be re-activated
-    #
-
-    def get_column_dict(self):
-        column_dict = {}
-        rows = []
-        offset = 0
-        while True:
-            self.cursor.execute("""
-            SELECT table_schema,
-                   table_name,
-                   column_name
-            FROM information_schema.COLUMNS
-            WHERE table_schema NOT IN {exclude}
-            ORDER BY table_schema,
-                     table_name,
-                     ordinal_position LIMIT 1000 OFFSET {offset};
-            """.format(offset=offset, exclude=self.config.exclude_dependencies))
-            chunk = self.cursor.fetchall()
-            offset += 1000
-            if chunk:
-                rows.extend(chunk)
-            else:
-                break
-        for key, iter in itertools.groupby(rows, lambda row: '%s.%s' % row[0:2]):
-            column_dict[key.lower()] = [row[2].lower() for row in iter]
-        return column_dict
-
-    def get_tables(self):
-        cmd = """
-        SELECT LOWER(table_schema),
-               LOWER(table_name),
-               CASE table_type
-                   WHEN 'BASE TABLE' THEN 'table'
-                   WHEN 'VIEW' THEN 'view'
-               END
-        FROM information_schema.tables
-        WHERE table_schema NOT IN {exclude}
-        ORDER BY table_schema,
-                 table_name;""".format(exclude=self.config.exclude_dependencies)
-        self.cursor.execute(cmd)
-        return self.cursor.fetchall()
-
-    def get_columns(self, dep_table, select_stmt, file_path):
-        template = "('{schema_name}','{table_name}',{column_name},'{rel_file_path}')"
-        column_dict = self.get_column_dict()
-
-        def has_column_name(column_name, select_stmt):
-            return re.search(r'((=|\s|\(|\.|"){}(=|\s|\)|\.|")|select\s+\*)'.format(column_name), select_stmt.lower())
-
-        try:
-            column_names = [
-                "'{}'".format(column_name) for column_name in column_dict[dep_table] if
-                has_column_name(column_name, select_stmt)]
-        except KeyError:
-            print("{} contains unknown table '{}'".format(file_path, dep_table))
-        return [template.format(**locals()) for column_name in column_names]
