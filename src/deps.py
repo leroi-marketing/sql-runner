@@ -16,7 +16,8 @@ class Dependencies:
             regex_schema_table = r'(?:from|join)\s*([a-z0-9_]*\.[a-z0-9_]*)(?:\s|;|,|$)'
             regex_db_schema_table = r'(?:from|join)\s*([a-z0-9_]*\.[a-z0-9_]*\.[a-z0-9_]*)(?:\s|;|,|$)'
             schema_table = set(str(match) for match in re.findall(regex_schema_table, select_stmt.lower(), re.DOTALL))
-            db_schema_table = set(str(match) for match in re.findall(regex_db_schema_table, select_stmt.lower(), re.DOTALL))
+            db_schema_table = set(
+                str(match) for match in re.findall(regex_db_schema_table, select_stmt.lower(), re.DOTALL))
             return schema_table | db_schema_table
 
         self.values = []
@@ -78,34 +79,34 @@ class Dependencies:
         self.cursor.execute(insert_stmt)
 
     def viz(self):
-        def key(s):
-            s = s.split('.')[0]
-            pos = s.find('_') + 1
-            return (s, s[:pos])[pos > 0]
+        def lookup(s, attr):
+            value = {
+                'colors': 'white',
+                'shapes': 'oval'
+            }[attr]
+            if hasattr(self.config, attr):
+                for k, v in getattr(self.config, attr).items():
+                    if s.startswith(k):
+                        value = v
+            return value
 
-        os.environ["PATH"] += os.pathsep + self.config.graphviz_path
-        cmd = """
-        SELECT DISTINCT schema_name, table_name, file_path
-        FROM {schema}.table_deps
-        WHERE file_path !~ '({schema}|admin)';
-        """.format(schema=self.config.deps_schema)
-        self.cursor.execute(cmd)
-        results = [('{}.{}'.format(*line[0:2]),
-                    line[2].split('.')[0].replace('/', '.'))
-                   for line in self.cursor.fetchall()]
+        results = [('{source_schema}.{source_table}'.format(**item),
+                    '{dependent_schema}.{dependent_table}'.format(**item)
+                    ) for item in self.values]
         g = nx.MultiDiGraph()
-        nodes = [(from_, {}) for from_, _ in results]
-        g.add_nodes_from(nodes)
         edges = [(from_, to_, {'fontsize': 10.0, 'penwidth': 1}) for from_, to_ in results]
         g.add_edges_from(edges)
         for node in g.nodes:
             g.node[node].update({
-                'fillcolor': self.config.colors.get(key(node), 'white'),
-                'shape': self.config.shapes.get(key(node), 'oval'),
+                'fillcolor': lookup(node, 'colors'),
+                'shape': lookup(node, 'shapes'),
                 'style': 'filled'
             })
-        nx.drawing.nx_pydot.to_pydot(g).write_svg('dependencies.svg')
+        file = os.path.join(self.config.sql_path, 'dependencies.svg')
+        os.environ["PATH"] += os.pathsep + self.config.graphviz_path
+        nx.drawing.nx_pydot.to_pydot(g).write_svg(file)
         if self.config.s3_bucket:
             s3 = boto3.resource('s3')
-            data = open('dependencies.svg', 'rb')
-            s3.Bucket(self.config.s3_bucket).put_object(Key='{}/dependencies.svg'.format(self.config.s3_folder), Body=data)
+            body = open(file, 'rb')
+            key = '{}/dependencies.svg'.format(self.config.s3_folder)
+            s3.Bucket(self.config.s3_bucket).put_object(Key=key, Body=body)
