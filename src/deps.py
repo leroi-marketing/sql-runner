@@ -7,6 +7,9 @@ import boto3
 
 
 class Dependencies:
+    """
+    TODO: move to Query class
+    """
 
     def __init__(self, config):
         self.config = config
@@ -41,6 +44,13 @@ class Dependencies:
                                 })
 
     def clean_schemas(self, prefix):
+        """
+        TODO: move to QueryList class
+        TODO: extend query to select from information_schema.tables to get schemata and numbers of tables in the schema
+        TODO: take prefix and suffix argument. remove all for prefix and only the empty ones for suffix.
+        TODO: maybe add force option to drop all schemata with suffix.
+        """
+
         cursor = query_list.get_connection(self.config).cursor()
         if self.config.database_type == 'redshift' or self.config.database_type == 'postgres':
             cmd = """
@@ -57,6 +67,10 @@ class Dependencies:
             cursor.execute("DROP SCHEMA {} CASCADE;".format(schema_name[0]))
 
     def save(self, monitor_schema):
+        """
+        TODO: move to Query class
+        """
+
         if not self.values:
             return
 
@@ -79,6 +93,9 @@ class Dependencies:
         self.cursor.execute(insert_stmt)
 
     def viz(self):
+        """
+        TODO: move to Query class
+        """
         def lookup(s, attr):
             value = {
                 'colors': 'white',
