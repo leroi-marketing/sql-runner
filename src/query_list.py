@@ -66,7 +66,6 @@ class QueryList(list):
             for full_table_name in full_table_names:
                 query.action = 'v'
                 query.query = query.query.replace(' ' + full_table_name, ' ' + schema_prefix + full_table_name)
-            query.schema_prefix = ''
         self.execute()
 
     def stage(self, schema_prefix='test_'):
