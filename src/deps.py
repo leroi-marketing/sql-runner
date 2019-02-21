@@ -56,12 +56,12 @@ class Dependencies:
             cmd = """
             SELECT schema_name
             FROM information_schema.schemata
-            WHERE schema_name ~ '^{prefix}.*';""".format(prefix=prefix)
+            WHERE schema_name ~ '^{prefix}.*' OR schema_name ~ '.*_MAT$';""".format(prefix=prefix)
         elif self.config.database_type == 'snowflake':
             cmd = """
             SELECT schema_name
             FROM information_schema.schemata
-            WHERE regexp_like(schema_name, '^{prefix}.*');""".format(prefix=prefix.upper())
+            WHERE regexp_like(schema_name, '^{}.*') OR regexp_like(schema_name, '.*_MAT$');""".format(prefix.upper())
         cursor.execute(cmd)
         for schema_name in cursor.fetchall():
             cursor.execute("DROP SCHEMA {} CASCADE;".format(schema_name[0]))
