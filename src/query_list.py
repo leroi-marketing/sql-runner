@@ -64,8 +64,11 @@ class QueryList(list):
         for query in self:
             query.schema_prefix = schema_prefix
             for full_table_name in full_table_names:
-                query.action = 'v'
                 query.query = query.query.replace(' ' + full_table_name, ' ' + schema_prefix + full_table_name)
+            if query.action == 'e':
+                query.action = 's'
+            else:
+                query.action = 'v'
         self.execute()
 
     def stage(self, schema_prefix='test_'):
@@ -88,10 +91,10 @@ class QueryList(list):
     def execute(self):
         run_start = datetime.datetime.now()
         for query in self:
+            start = datetime.datetime.now()
             print(query)
             if query.action in QueryList.actions:
                 stmt_type = QueryList.actions[query.action]
-                start = datetime.datetime.now()
                 for stmt in getattr(query, stmt_type).split(';'):
                     if stmt.strip():
                         try:
@@ -106,7 +109,7 @@ class QueryList(list):
                             """.replace(4 * 7 * ' ', '').format(msg=traceback.format_exc(), stmt=stmt, query=query)
                             print(msg)
                             exit(1)
-                print(datetime.datetime.now() - start)
+            print(datetime.datetime.now() - start)
         print('Run finished in {}'.format(datetime.datetime.now() - run_start))
 
 
