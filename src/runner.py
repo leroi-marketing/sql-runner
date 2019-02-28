@@ -26,7 +26,7 @@ if __name__ == '__main__':
         os.environ["PATH"] += os.pathsep + config.graphviz_path
 
     if args.database:
-        config.database = args.database
+        config.auth['database'] = args.database
         config.sql_path = config.sql_path + args.database
 
     if args.execute:
