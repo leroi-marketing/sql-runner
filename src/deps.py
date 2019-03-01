@@ -56,7 +56,7 @@ class Dependencies:
             cmd = """
             SELECT schema_name
             FROM information_schema.schemata
-            WHERE schema_name ~ '^{prefix}.*' OR schema_name ~ '.*_MAT$';""".format(prefix=prefix)
+            WHERE schema_name ~ '^{prefix}.*' OR schema_name ~ '.*_mat$';""".format(prefix=prefix)
         elif self.config.database_type == 'snowflake':
             cmd = """
             SELECT schema_name
