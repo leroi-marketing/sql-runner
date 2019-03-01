@@ -25,19 +25,23 @@ if __name__ == '__main__':
         config = SimpleNamespace(**json.load(f))
         os.environ["PATH"] += os.pathsep + config.graphviz_path
 
+    if hasattr(config, 'test_schema_prefix'):
+        schema_prefix = config.test_schema_prefix
+    else:
+        schema_prefix = query_list.Query.default_schema_prefix
+        
     if args.database:
         config.auth['database'] = args.database
         config.sql_path = config.sql_path + args.database
 
     if args.execute:
         query_list.QueryList.from_csv_files(config, args.execute).execute()
+        deps.Dependencies(config).clean_schemas(schema_prefix)
+
     elif args.test:
         query_list.QueryList.from_csv_files(config, args.test).test()
-        if hasattr(config, 'test_schema_prefix'):
-            schema_prefix = config.test_schema_prefix
-        else:
-            schema_prefix = query_list.Query.default_schema_prefix
         deps.Dependencies(config).clean_schemas(schema_prefix)
+
     elif args.deps:
         schema = config.deps_schema
         d = deps.Dependencies(config)
