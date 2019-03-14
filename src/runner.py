@@ -36,7 +36,7 @@ if __name__ == '__main__':
 
     if args.execute:
         query_list.QueryList.from_csv_files(config, args.execute).execute()
-        #deps.Dependencies(config).clean_schemas(schema_prefix)
+        deps.Dependencies(config).clean_schemas(schema_prefix)
 
     elif args.test:
         query_list.QueryList.from_csv_files(config, args.test).test()

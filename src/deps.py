@@ -44,11 +44,9 @@ class Dependencies:
                                 })
 
     def clean_schemas(self, prefix):
+
         """
         TODO: move to QueryList class
-        TODO: extend query to select from information_schema.tables to get schemata and numbers of tables in the schema
-        TODO: take prefix and suffix argument. remove all for prefix and only the empty ones for suffix.
-        TODO: maybe add force option to drop all schemata with suffix.
         """
 
         cursor = query_list.get_connection(self.config).cursor()
@@ -56,14 +54,24 @@ class Dependencies:
             cmd = """
             SELECT schema_name
             FROM information_schema.schemata
-            WHERE schema_name ~ '^{prefix}.*';""".format(prefix=prefix)
-            #OR schema_name ~ '.*_mat$'
+            WHERE schema_name ~ '^{prefix}.*'
+            OR    schema_name NOT IN (SELECT table_schema FROM information_schema.tables)
+            AND   schema_name ~ '.*_mat$';""".format(prefix=prefix)
+
         elif self.config.database_type == 'snowflake':
+            prefix = prefix.upper()
             cmd = """
-            SELECT schema_name
-            FROM information_schema.schemata
-            WHERE regexp_like(schema_name, '^{}.*') );""".format(prefix.upper())
-            #OR regexp_like(schema_name, '.*_MAT$'
+            WITH filter_ AS
+            (
+              SELECT DISTINCT table_schema AS table_schema
+              FROM information_schema.tables
+            )
+            SELECT DISTINCT schema_name AS schema_name_
+            FROM information_schema.schemata schemata
+              LEFT JOIN filter_ ON filter_.table_schema = schema_name
+            WHERE regexp_like(schema_name_,'^{prefix}.*')
+            OR (filter_.table_schema IS NULL AND regexp_like(schema_name_,'.*_MAT$'));""".format(prefix=prefix)
+
         cursor.execute(cmd)
         for schema_name in cursor.fetchall():
             cursor.execute("DROP SCHEMA {} CASCADE;".format(schema_name[0]))
