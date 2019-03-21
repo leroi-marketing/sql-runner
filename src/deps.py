@@ -120,9 +120,10 @@ class Dependencies:
                 'style': 'filled'
             })
         os.environ["PATH"] += os.pathsep + self.config.graphviz_path
-        nx.drawing.nx_pydot.to_pydot(g).write_svg('dependencies.svg')
+        svg_file_path = '{}/dependencies.svg'.format(self.config.sql_path)
+        nx.drawing.nx_pydot.to_pydot(g).write_svg(svg_file_path)
         if self.config.s3_bucket:
             s3 = boto3.resource('s3')
-            body = open('dependencies.svg', 'rb')
+            body = open(svg_file_path, 'rb')
             key = '{}/dependencies.svg'.format(self.config.s3_folder)
             s3.Bucket(self.config.s3_bucket).put_object(Key=key, Body=body)
