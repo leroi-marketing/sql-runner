@@ -16,7 +16,6 @@ if __name__ == '__main__':
     parser.add_argument('--execute', nargs='*')
     parser.add_argument('--test', nargs='*')
     parser.add_argument('--deps', action='store_const', const=True, default=False)
-    parser.add_argument('--staging', nargs='*')
     parser.add_argument('--database', nargs='?', default=False)
     parser.add_argument('--clean', nargs='?', default='test_')
     args = parser.parse_args()
@@ -47,9 +46,6 @@ if __name__ == '__main__':
         d = deps.Dependencies(config)
         d.save(schema)
         d.viz()
-
-    elif args.staging:
-        query_list.QueryList.from_csv_files(config, args.staging).stage()
 
     elif args.clean:
         deps.Dependencies(config).clean_schemas(args.clean)

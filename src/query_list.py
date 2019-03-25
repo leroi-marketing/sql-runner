@@ -71,23 +71,6 @@ class QueryList(list):
                 query.action = 'v'
         self.execute()
 
-    def stage(self, schema_prefix='test_'):
-        schema_names = set(query.schema_name for query in self)
-        full_table_names = set(query.full_table_name for query in self)
-        for schema_name in schema_names:
-            statements = """
-            DROP SCHEMA IF EXISTS {schema_prefix}{schema_name} CASCADE;
-            CREATE SCHEMA {schema_prefix}{schema_name}
-            """.format(**locals())
-            for stmt in statements.split(';'):
-                self.cursor.execute(stmt)
-        for query in self:
-            query.schema_prefix = schema_prefix
-            for full_table_name in full_table_names:
-                query.action = 't'
-                query.query = query.query.replace(' ' + full_table_name, ' ' + schema_prefix + full_table_name)
-        self.execute()
-
     def execute(self):
         run_start = datetime.datetime.now()
         for query in self:
