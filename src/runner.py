@@ -6,11 +6,6 @@ import os
 from types import SimpleNamespace
 
 if __name__ == '__main__':
-    """
-    TODO: split auth and config to have config in git
-    TODO: move config into src and complete custom config with default values
-    TODO: check whether move from SimpleNamespace back to dict for config
-    """
     parser = argparse.ArgumentParser(description='Parse arguments SQL runner.')
     parser.add_argument('--config', nargs='?', default='auth/config.json')
     parser.add_argument('--execute', nargs='*')

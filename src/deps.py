@@ -7,10 +7,6 @@ import boto3
 
 
 class Dependencies:
-    """
-    TODO: move to Query class
-    """
-
     def __init__(self, config):
         self.config = config
         self.cursor = query_list.get_connection(config).cursor()
@@ -44,11 +40,6 @@ class Dependencies:
                                 })
 
     def clean_schemas(self, prefix):
-
-        """
-        TODO: move to QueryList class
-        """
-
         cursor = query_list.get_connection(self.config).cursor()
         if self.config.database_type == 'redshift' or self.config.database_type == 'postgres':
             cmd = """
@@ -77,9 +68,6 @@ class Dependencies:
             cursor.execute("DROP SCHEMA {} CASCADE;".format(schema_name[0]))
 
     def save(self, monitor_schema):
-        """
-        TODO: move to Query class
-        """
 
         if not self.values:
             return
@@ -103,9 +91,6 @@ class Dependencies:
         self.cursor.execute(insert_stmt)
 
     def viz(self):
-        """
-        TODO: move to Query class
-        """
         def lookup(s, attr):
             value = {
                 'colors': 'white',
@@ -130,10 +115,9 @@ class Dependencies:
                 'style': 'filled'
             })
         os.environ["PATH"] += os.pathsep + self.config.graphviz_path
-        svg_file_path = '{}/dependencies.svg'.format(self.config.sql_path)
-        nx.drawing.nx_pydot.to_pydot(g).write_svg(svg_file_path)
+        nx.drawing.nx_pydot.to_pydot(g).write_svg('dependencies.svg')
         if self.config.s3_bucket:
             s3 = boto3.resource('s3')
-            body = open(svg_file_path, 'rb')
+            body = open('dependencies.svg', 'rb')
             key = '{}/dependencies.svg'.format(self.config.s3_folder)
             s3.Bucket(self.config.s3_bucket).put_object(Key=key, Body=body)
