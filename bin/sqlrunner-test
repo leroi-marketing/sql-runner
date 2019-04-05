@@ -1,4 +1,4 @@
-sqlrunner --config auth/selftest.json --execute generate_testdata
+sqlrunner --config auth/selftest.json --execute create_testdata
 sqlrunner --config auth/selftest.json --execute selftest
 sqlrunner --config auth/selftest.json --test selftest
 sqlrunner --config auth/selftest.json --deps
