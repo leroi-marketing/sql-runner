@@ -4,5 +4,4 @@ venv/
 src/__pycache__
 auth/config.json
 testing
-auth/
 dependencies.svg

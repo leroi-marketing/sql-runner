@@ -1,0 +1,24 @@
+{
+    "sql_path": "selftest",
+    "database_type": "postgres",
+    "auth": {
+      "user": "postgres",
+      "password": "admin",
+      "dbname": "",
+      "host": "localhost",
+      "port": "5432"
+    },
+   "deps_schema": "monitor",
+   "s3_bucket" : false,
+   "s3_folder" : false,
+   "test_schema_prefix" : "zz_",
+   "exclude_dependencies": "('information_schema')",
+   "graphviz_path": "C:/Program Files (x86)/Graphviz2.38/bin/",
+   "colors" : {
+     "x_": "#ddddff",
+     "d_": "#ddffdd"
+   },
+   "shapes" : {
+     "x_": "box"
+   }
+ }
