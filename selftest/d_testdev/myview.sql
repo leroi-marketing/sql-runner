@@ -1,4 +1,4 @@
 CREATE VIEW d_testdev.myview 
 AS
 SELECT *
-FROM sqlrunner.x_test_data;
+FROM sqlrunner.test_data;
