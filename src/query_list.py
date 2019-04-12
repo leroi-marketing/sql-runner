@@ -11,6 +11,7 @@ import snowflake.connector
 def get_connection(config):
     if config.database_type == 'snowflake':
         connection = snowflake.connector.connect(**config.auth)
+        connection.cursor().execute('USE DATABASE {database}'.format(**config.auth))
     elif config.database_type == 'redshift' or config.database_type == 'postgres':
         connection = psycopg2.connect(**config.auth, connect_timeout=3)
     else:
