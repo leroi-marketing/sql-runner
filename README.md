@@ -31,6 +31,10 @@ Make the runner executable
 ```
 sudo ln -s /home/ubuntu/sql-runner/bin/sqlrunner /usr/local/bin/sqlrunner
 chmod a+x bin/sqlrunner
+
+sudo ln -s /home/ubuntu/sql-runner/bin/sqlrunner-test /usr/local/bin/sqlrunner-test
+chmod a+x bin/sqlrunner-test
+
 ```
 
 

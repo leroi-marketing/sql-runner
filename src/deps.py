@@ -21,23 +21,24 @@ class Dependencies:
 
         self.values = []
         for root, _, file_names in os.walk(config.sql_path):
-            for file_name in file_names:
-                if file_name[-4:] == '.sql':
-                    file_path = os.path.normpath(os.path.join(root, file_name))
-                    with open(file_path, 'rb') as sql_file:
-                        select_stmt = sql_file.read().decode('utf-8')
-                        if select_stmt != '':
-                            dependent_schema = os.path.basename(os.path.normpath(root))
-                            dependent_table = file_name[:-4]
-                            for source in get_query_sources(select_stmt):
-                                source_schema = source.split('.')[-2]
-                                source_table = source.split('.')[-1]
-                                self.values.append({
-                                    'source_schema': source_schema,
-                                    'source_table': source_table,
-                                    'dependent_schema': dependent_schema,
-                                    'dependent_table': dependent_table
-                                })
+            if not root.endswith(tuple(config.exclude_dependencies)):
+                for file_name in file_names:
+                    if file_name[-4:] == '.sql':
+                        file_path = os.path.normpath(os.path.join(root, file_name))
+                        with open(file_path, 'rb') as sql_file:
+                            select_stmt = sql_file.read().decode('utf-8')
+                            if select_stmt != '':
+                                dependent_schema = os.path.basename(os.path.normpath(root))
+                                dependent_table = file_name[:-4]
+                                for source in get_query_sources(select_stmt):
+                                    source_schema = source.split('.')[-2]
+                                    source_table = source.split('.')[-1]
+                                    self.values.append({
+                                        'source_schema': source_schema,
+                                        'source_table': source_table,
+                                        'dependent_schema': dependent_schema,
+                                        'dependent_table': dependent_table
+                                    })
 
     def clean_schemas(self, prefix):
         cursor = query_list.get_connection(self.config).cursor()
