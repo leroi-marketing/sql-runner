@@ -1,11 +1,10 @@
 import argparse
-import query_list
-import deps
+from src import deps, query_list
 import json
 import os
 from types import SimpleNamespace
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='Parse arguments SQL runner.')
     parser.add_argument('--config', nargs='?', default='auth/config.json')
     parser.add_argument('--execute', nargs='*')
@@ -44,3 +43,7 @@ if __name__ == '__main__':
 
     elif args.clean:
         deps.Dependencies(config).clean_schemas(args.clean)
+
+
+if __name__ == '__main__':
+    main()
