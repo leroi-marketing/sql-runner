@@ -2,7 +2,7 @@ import os
 import re
 
 import networkx as nx
-import query_list
+from src import query_list
 import boto3
 
 

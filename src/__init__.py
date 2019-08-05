@@ -1,2 +1,1 @@
-import deps
-import query_list
+from src import deps, query_list
