@@ -21,8 +21,6 @@ class QueryList(list):
     }
 
     def __init__(self, config: SimpleNamespace, csv_string: str):
-        # If you know of an easier to write method that's also easy to debug, and easy enough for anyone to understand,
-        # please change this
         DBClass, QueryClass = get_db_and_query_classes(config)
         self.config = config
         self.db: DB = DBClass(config)
