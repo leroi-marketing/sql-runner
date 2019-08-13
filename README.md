@@ -6,6 +6,12 @@ The LEROI SQL runner has three basic functionalities
 ```
 sqlrunner --execute {RUNNER_FILE_1}, {RUNNER_FILE_2} ..
 ```
+* executing SQL code in a specific order, in staging mode (on test schema, 
+tables and data)
+```
+sqlrunner --staging {RUNNER_FILE_1}, {RUNNER_FILE_2} ..
+```
+
 * quickly testing SQL code through temporary creation of views
 ```
 sqlrunner --test {RUNNER_FILE_1}, {RUNNER_FILE_2} ..

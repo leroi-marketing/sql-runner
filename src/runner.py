@@ -10,6 +10,7 @@ if __name__ == '__main__':
     parser.add_argument('--config', nargs='?', default='auth/config.json')
     parser.add_argument('--execute', nargs='*')
     parser.add_argument('--test', nargs='*')
+    parser.add_argument('--staging', nargs='*')
     parser.add_argument('--deps', action='store_const', const=True, default=False)
     parser.add_argument('--database', nargs='?', default=False)
     parser.add_argument('--clean', nargs='?', default='test_')
@@ -35,6 +36,9 @@ if __name__ == '__main__':
     elif args.test:
         query_list.QueryList.from_csv_files(config, args.test).test()
         deps.Dependencies(config).clean_schemas(schema_prefix)
+
+    elif args.staging:
+        query_list.QueryList.from_csv_files(config, args.staging).test(True)
 
     elif args.deps:
         schema = config.deps_schema
