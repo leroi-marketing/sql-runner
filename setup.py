@@ -15,11 +15,7 @@ setup(
     python_requires='~=3.6',
 
     install_requires=[
-        'azure-storage-blob==1.4.0',
-        'psycopg2-binary==2.7.7',
-        'snowflake-connector-python==1.7.4',
         'networkx==2.2',
-        'boto3==1.9.75',
         'pydot==1.4.1',
         'graphviz==0.10.1'
     ],
@@ -27,9 +23,13 @@ setup(
     dependency_links=[
     ],
 
-    #extras_require={
-    #    'test': ['pytest', 'pytest_click'],
-    #},
+    extras_require={
+        's3': ['boto3==1.9.75'],
+        'snowflake': ['snowflake-connector-python==1.7.4', 'azure-storage-blob==1.4.0'],
+        'redshift': ['psycopg2-binary==2.7.7'],
+        'postgres': ['psycopg2-binary==2.7.7'],
+        'azuredwh': ['pyodbc']
+    },
 
     packages=find_packages(),
 
