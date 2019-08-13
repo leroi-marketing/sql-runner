@@ -39,11 +39,23 @@ class QueryList(list):
     }
 
     def __init__(self, config: SimpleNamespace, csv_string: str):
+        # If you know of an easier to write method that's also easy to debug, and easy enough for anyone to understand,
+        # please change this
+        if config.database_type == 'postgres':
+            from src.query.postgres_query import PostgresQuery as constructor
+        elif config.database_type == 'redshift':
+            from src.query.redshift_query import RedshiftQuery as constructor
+        elif config.database_type == 'snowflake':
+            from src.query.snowflake_query import SnowflakeQuery as constructor
+        elif config.database_type == 'azuredwh':
+            from src.query.azuredwh_query import AzureDwhQuery as constructor
+        else:
+            raise Exception(f"Unknown database type: {config.database_type}")
         self.cursor = get_connection(config).cursor()
         self.config = config
         for query in csv.DictReader(io.StringIO(csv_string.strip()), delimiter=';'):
             if not query['schema_name'].startswith('#'):
-                self.append(Query(config, **query))
+                self.append(constructor(config, **query))
 
     @staticmethod
     def from_csv_files(config: SimpleNamespace, csv_files: List[str]) -> "QueryList":
