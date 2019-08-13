@@ -1,6 +1,5 @@
 import os
 import re
-import snowflake.connector
 from textwrap import dedent
 from types import SimpleNamespace
 from typing import List, Union
@@ -32,16 +31,22 @@ class Query(object):
         return f'{self.schema_prefix}{self.schema_name}.{self.table_name} > {self.action}'
 
     def check_uniqueness(self, cursor: Union["psycopg2.extensions.cursor", "snowflake.connector.SnowflakeCursor"]):
+        """ Check if unique keys for current table make sense, and prints offending keys
+        """
         if len(self.unique_keys) > 0:
             print(f'check uniqueness for {self.name}')
             for key in self.unique_keys:
                 select_key_stmt = f"""
-                SELECT '{key}', COUNT(*)
-                FROM (SELECT {key}
-                      FROM {self.name}
-                      WHERE {key} IS NOT NULL
-                      GROUP BY 1
-                      HAVING COUNT(*) > 1);
+                SELECT '{key}' AS offending_key, COUNT(*)
+                FROM (
+                  SELECT
+                    {key}
+                  FROM {self.name}
+                  WHERE {key} IS NOT NULL
+                  GROUP BY 1
+                  HAVING COUNT(*) > 1
+                ) AS tmp
+                GROUP BY 1;
                 """
                 cursor.execute(select_key_stmt)
                 for line in cursor:
@@ -78,41 +83,6 @@ class Query(object):
         return select_stmt
 
     @property
-    def distkey_stmt(self) -> str:
-        """ Distribution key statement, parsed out of `DISTKEY (<list>)`.
-        """
-        if self.config.database_type == 'redshift':
-            match = re.search(r'/\*.*(distkey\s*\([^\()]*\)).*\**/', self.query, re.DOTALL | re.IGNORECASE)
-            if match is not None:
-                if match.group(1) == 'DISTKEY ()':
-                    distkey_stmt = 'DISTSTYLE ALL'
-                else:
-                    distkey_stmt = 'DISTSTYLE KEY ' + match.group(1)
-            else:
-                distkey_stmt = 'DISTSTYLE EVEN'
-            return distkey_stmt
-        else:
-            return ''
-
-    @property
-    def sortkey_stmt(self) -> str:
-        """ Sort key statement, parsed out of `[INTERLEAVED|COMPOUND] SORTKEY <key>`
-        """
-        if self.config.database_type == 'redshift':
-            match = re.search(r'/\*.*((compound\s*sortkey|interleaved\s*sortkey)\s*\([^\()]*\)).*\**/', self.query,
-                              re.DOTALL | re.IGNORECASE)
-            if match is None:
-                match = re.search(r'/\*.*(sortkey\s*\([^\()]*\)).*\**/', self.query,
-                                  re.DOTALL | re.IGNORECASE)
-            if match is not None:
-                sortkey_stmt = match.group(1)
-            else:
-                sortkey_stmt = ''
-            return sortkey_stmt
-        else:
-            return ''
-
-    @property
     def unique_keys(self) -> List[str]:
         """ Unique key list (key1, key2), parsed out of `UNIQUE KEY <key1, key2>`
         """
@@ -141,53 +111,28 @@ class Query(object):
     def create_table_stmt(self) -> str:
         """ Statement that creates a table out of `select_stmt`
         """
-        if self.config.database_type == 'redshift':
-            return dedent(f"""
-            CREATE SCHEMA IF NOT EXISTS {self.schema_name}{self.schema_suffix};
-            DROP TABLE IF EXISTS {self.schema_name}{self.schema_suffix}.{self.table_name} CASCADE;
-            DROP TABLE IF EXISTS {self.name} CASCADE;
-            CREATE TABLE {self.name} {self.distkey_stmt} {self.sortkey_stmt}
-            AS
-            {self.select_stmt};
-            ANALYZE {self.name};
-            """)
-        else:
-            return dedent(f"""
-            DROP TABLE IF EXISTS {self.name} CASCADE;
-            CREATE TABLE {self.name}
-            AS
-            {self.select_stmt};
-            """)
+        return dedent(f"""
+        DROP TABLE IF EXISTS {self.name} CASCADE;
+        CREATE TABLE {self.name}
+        AS
+        {self.select_stmt};
+        """)
 
     @property
     def materialize_view_stmt(self) -> str:
         """ Statement that creates a "materialized" view, or equivalent, out of a `select_stmt`
         """
-        if self.config.database_type == 'redshift':
-            return dedent(f"""
-            CREATE SCHEMA IF NOT EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix};
-            DROP TABLE IF EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name} CASCADE;
-            CREATE TABLE {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name} {self.distkey_stmt} {self.sortkey_stmt}
-            AS
-            {self.select_stmt};
-            ANALYZE {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name};
-            DROP VIEW IF EXISTS {self.name} CASCADE;
-            CREATE VIEW {self.name}
-            AS
-            SELECT * FROM {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name};
-            """)
-        else:
-            return dedent(f"""
-            CREATE SCHEMA IF NOT EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix};
-            DROP TABLE IF EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name} CASCADE;
-            CREATE TABLE {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name}
-            AS
-            {self.select_stmt};
-            DROP VIEW IF EXISTS {self.name} CASCADE;
-            CREATE VIEW {self.name}
-            AS
-            SELECT * FROM {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name};
-            """)
+        return dedent(f"""
+        CREATE SCHEMA IF NOT EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix};
+        DROP TABLE IF EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name} CASCADE;
+        CREATE TABLE {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name}
+        AS
+        {self.select_stmt};
+        DROP VIEW IF EXISTS {self.name} CASCADE;
+        CREATE VIEW {self.name}
+        AS
+        SELECT * FROM {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name};
+        """)
 
     def skip(self):
         """ Empty statement, skip
