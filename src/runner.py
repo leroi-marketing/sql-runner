@@ -49,7 +49,7 @@ def main():
     args = parser.parse_args()
 
 
-    from src import deps, query_list, query
+    from src import deps, query_list, db
 
     with open(args.config) as f:
         config = SimpleNamespace(**json.load(f))
@@ -58,7 +58,7 @@ def main():
     if hasattr(config, 'test_schema_prefix'):
         schema_prefix = config.test_schema_prefix
     else:
-        schema_prefix = query.Query.default_schema_prefix
+        schema_prefix = db.Query.default_schema_prefix
 
     if args.database:
         config.auth['database'] = args.database

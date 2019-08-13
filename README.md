@@ -18,26 +18,18 @@ sqlrunner --deps
 The supported databases are Redshift, Snowflake and Postgres.
 ### Installation
 Pull repository and install dependencies
-```
-sudo apt install git
-git clone https://github.com/leroi-marketing/sql-runner.git
-cd sql-runner
+```sh
 sudo apt install python3-pip
-sudo python3 -m pip install --upgrade pip
-sudo python3 -m pip install -r requirements.txt
 sudo apt install graphviz
+pip install git+https://github.com/leroi-marketing/sql-runner.git[s3,azuredwh] #other optional dependencies
 ```
-Make the runner executable
+Additionally for Azure DWH, it's required to install the [Microsoft ODBC Driver](https://docs.microsoft.com/en-us/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server?view=sql-server-2017). For Ubuntu 18.04 this is sufficient:
+```sh
+sudo curl https://packages.microsoft.com/config/ubuntu/18.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+sudo apt-get update
+sudo ACCEPT_EULA=Y apt-get install msodbcsql17
+sudo apt-get install unixodbc-dev
 ```
-sudo ln -s /home/ubuntu/sql-runner/bin/sqlrunner /usr/local/bin/sqlrunner
-chmod a+x bin/sqlrunner
-
-sudo ln -s /home/ubuntu/sql-runner/bin/sqlrunner-test /usr/local/bin/sqlrunner-test
-chmod a+x bin/sqlrunner-test
-
-```
-
-
 
 ### Configuration
 Two configuration files are needed to use the sqlrunner.
@@ -78,3 +70,16 @@ Per schema one directory is expected. The name of the SQL files should correspon
  v: create view
  m: materialize view
  ```
+
+### Development
+
+To set up dependencies locally for development:
+```sh
+# Install virtualenv (if your default python is python2, specify also `-p python3`)
+virtualenv venv
+source venv/bin/activate
+pip install -e .[s3,azuredwh] # and other optional dependencies
+
+# Run local (non-build) version:
+python debug.py [arg1 arg2 ...]
+```

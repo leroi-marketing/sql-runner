@@ -2,7 +2,26 @@ import os
 import re
 from textwrap import dedent
 from types import SimpleNamespace
-from typing import List, Union
+from typing import List, Union, Tuple
+
+
+class DB():
+    def __init__(self, config: SimpleNamespace):
+        self.cursor = None
+    
+    def execute(self, stmt: str):
+        """Execute statement using DB-specific connector
+        """
+        raise Exception(f"`execute()` not implemented for type {type(self)}")
+
+    def fetchone(self):
+        return self.cursor.fetchone()
+
+    def fetchmany(self):
+        return self.cursor.fetchmany()
+
+    def fetchall(self):
+        return self.cursor.fetchall()
 
 
 class Query(object):
@@ -30,7 +49,7 @@ class Query(object):
     def __repr__(self):
         return f'{self.schema_prefix}{self.schema_name}.{self.table_name} > {self.action}'
 
-    def check_uniqueness(self, cursor: Union["psycopg2.extensions.cursor", "snowflake.connector.SnowflakeCursor"]):
+    def check_uniqueness(self, cursor):
         """ Check if unique keys for current table make sense, and prints offending keys
         """
         if len(self.unique_keys) > 0:
@@ -138,3 +157,22 @@ class Query(object):
         """ Empty statement, skip
         """
         return ""
+
+
+def get_db_and_query_classes(config: SimpleNamespace) -> Tuple[DB, Query]:
+    """Returns database specific connector and query class
+    """
+    # If you know of an easier to write method that's also easy to debug, and easy enough for anyone to understand,
+    # please change this
+    if config.database_type == 'postgres':
+        from src.db.postgres import PostgresQuery as _Query, PostgresDB as _DB
+    elif config.database_type == 'redshift':
+        from src.db.redshift import RedshiftQuery as _Query, RedshiftDB as _DB
+    elif config.database_type == 'snowflake':
+        from src.db.snowflake import SnowflakeQuery as _Query, SnowflakeDB as _DB
+    elif config.database_type == 'azuredwh':
+        from src.db.azuredwh import AzureDwhQuery as _Query, AzureDwhDB as _DB
+    else:
+        raise Exception(f"Unknown database type: {config.database_type}")
+    return _DB, _Query
+    

@@ -1,6 +1,10 @@
 import re
 from textwrap import dedent
-from src.query.postgresql_query import PostgresqlQuery
+from src.db.postgres import PostgresQuery, PostgresDB
+
+class RedshiftDB(PostgresDB):
+    pass
+
 
 class RedshiftQuery(PostgresqlQuery):
     @property

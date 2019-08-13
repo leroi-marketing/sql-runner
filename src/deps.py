@@ -2,8 +2,7 @@ import os
 import re
 
 import networkx as nx
-from src import query_list
-import boto3
+from src.db import get_db_and_query_classes, DB
 from types import SimpleNamespace
 from typing import Set, List, Dict
 
@@ -11,7 +10,8 @@ from typing import Set, List, Dict
 class Dependencies:
     def __init__(self, config: SimpleNamespace):
         self.config = config
-        self.cursor = query_list.get_connection(config).cursor()
+        dbclass, _ = get_db_and_query_classes(config)
+        self.db: DB = dbclass(config)
 
         def get_query_sources(select_stmt: str) -> Set[str]:
             """ Get set of tables mentioned in the select statement
@@ -47,7 +47,6 @@ class Dependencies:
     def clean_schemas(self, prefix: str):
         """ Drop schemata that have a specific name prefix
         """
-        cursor = query_list.get_connection(self.config).cursor()
         if self.config.database_type == 'redshift' or self.config.database_type == 'postgres':
             cmd = f"""
             SELECT schema_name
@@ -70,9 +69,9 @@ class Dependencies:
             WHERE regexp_like(schema_name_,'^{prefix}.*')
             OR (filter_.table_schema IS NULL AND regexp_like(schema_name_,'.*_MAT$'));"""
 
-        cursor.execute(cmd)
-        for schema_name in cursor.fetchall():
-            cursor.execute(f"DROP SCHEMA {schema_name[0]} CASCADE;")
+        self.db.execute(cmd)
+        for schema_name in self.db.cursor.fetchall():
+            self.db.execute(f"DROP SCHEMA {schema_name[0]} CASCADE;")
 
     def save(self, monitor_schema: str):
         """ Save dependencies list in the database in the `monitor_schema` schema
@@ -82,8 +81,8 @@ class Dependencies:
 
         template = "('{source_schema}','{source_table}','{dependent_schema}','{dependent_table}')"
         values = ',\n'.join(template.format(**item) for item in self.dependencies)
-        self.cursor.execute(f'CREATE SCHEMA IF NOT EXISTS {monitor_schema};')
-        self.cursor.execute(f"""
+        self.db.execute(f'CREATE SCHEMA IF NOT EXISTS {monitor_schema};')
+        self.db.execute(f"""
             CREATE TABLE IF NOT EXISTS {monitor_schema}.table_deps 
             (
             source_schema    VARCHAR,
@@ -92,12 +91,12 @@ class Dependencies:
             dependent_table  VARCHAR
             );"""
         )
-        self.cursor.execute(f'TRUNCATE {monitor_schema}.table_deps;')
+        self.db.execute(f'TRUNCATE {monitor_schema}.table_deps;')
         insert_stmt = f"""
             INSERT INTO {monitor_schema}.table_deps
             VALUES
             {values}"""
-        self.cursor.execute(insert_stmt)
+        self.db.execute(insert_stmt)
 
     def viz(self):
         def lookup(node_name: str, config_attr: str) -> str:
@@ -130,6 +129,7 @@ class Dependencies:
         os.environ["PATH"] += os.pathsep + self.config.graphviz_path
         nx.drawing.nx_pydot.to_pydot(g).write_svg('dependencies.svg')
         if self.config.s3_bucket:
+            import boto3
             s3 = boto3.resource('s3')
             body = open('dependencies.svg', 'rb')
             key = f'{self.config.s3_folder}/dependencies.svg'

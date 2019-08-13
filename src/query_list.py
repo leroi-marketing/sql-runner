@@ -1,32 +1,14 @@
 import csv
 import io
 import os
-import sys
 import re
 import datetime
 import traceback
-import psycopg2
-import snowflake.connector
 from textwrap import dedent
 from types import SimpleNamespace
 from typing import Union, Any, Dict, List
 
-from src.query import Query
-
-
-def get_connection(config: SimpleNamespace) -> Union[snowflake.connector.SnowflakeConnection, psycopg2.extensions.connection]:
-    """ Get database connection object
-    """
-    if config.database_type == 'snowflake':
-        connection = snowflake.connector.connect(**config.auth)
-        connection.cursor().execute(f'USE DATABASE {config.auth.database}')
-    elif config.database_type == 'redshift' or config.database_type == 'postgres':
-        connection = psycopg2.connect(**config.auth, connect_timeout=3)
-    else:
-        raise ValueError(f'Invalid database: {config.database}! Value must be snowflake, redshift or postgres')
-    connection.autocommit = True
-    return connection
-
+from src.db import DB, Query, get_db_and_query_classes
 
 class QueryList(list):
 
@@ -41,21 +23,12 @@ class QueryList(list):
     def __init__(self, config: SimpleNamespace, csv_string: str):
         # If you know of an easier to write method that's also easy to debug, and easy enough for anyone to understand,
         # please change this
-        if config.database_type == 'postgres':
-            from src.query.postgres_query import PostgresQuery as constructor
-        elif config.database_type == 'redshift':
-            from src.query.redshift_query import RedshiftQuery as constructor
-        elif config.database_type == 'snowflake':
-            from src.query.snowflake_query import SnowflakeQuery as constructor
-        elif config.database_type == 'azuredwh':
-            from src.query.azuredwh_query import AzureDwhQuery as constructor
-        else:
-            raise Exception(f"Unknown database type: {config.database_type}")
-        self.cursor = get_connection(config).cursor()
+        DBClass, QueryClass = get_db_and_query_classes(config)
         self.config = config
+        self.db: DB = DBClass(config)
         for query in csv.DictReader(io.StringIO(csv_string.strip()), delimiter=';'):
             if not query['schema_name'].startswith('#'):
-                self.append(constructor(config, **query))
+                self.append(QueryClass(config, **query))
 
     @staticmethod
     def from_csv_files(config: SimpleNamespace, csv_files: List[str]) -> "QueryList":
@@ -87,7 +60,8 @@ class QueryList(list):
             CREATE SCHEMA {schema_prefix}{schema_name}
             """
             for stmt in statements.split(';'):
-                self.cursor.execute(stmt)
+                # Use the query db-specific executor
+                self.db.execute(stmt)
         
         # Change all queries to use schema_prefix
         # Plus change query actions:
@@ -116,17 +90,6 @@ class QueryList(list):
                 # Get list of individual specific statements and process them
                 for stmt in getattr(query, stmt_type).split(';'):
                     if stmt.strip():
-                        try:
-                            self.cursor.execute(stmt)
-                        except (
-                                psycopg2.ProgrammingError, psycopg2.InternalError,
-                                snowflake.connector.errors.ProgrammingError):
-                            msg = dedent(f"""
-                            ERROR: executing '{query.name}':
-                            SQL path "{query.path}"
-                            {stmt}\n{traceback.format_exc()}
-                            """)
-                            sys.stderr.write(msg)
-                            exit(1)
+                        self.db.execute(stmt)
             print(datetime.datetime.now() - start)
         print('Run finished in {}'.format(datetime.datetime.now() - run_start))
