@@ -15,10 +15,13 @@ setup(
     python_requires='~=3.6',
 
     install_requires=[
+        'azure-storage-blob==1.4.0',
         'psycopg2-binary==2.7.7',
         'snowflake-connector-python==1.7.4',
         'networkx==2.2',
-        'boto3==1.9.75'
+        'boto3==1.9.75',
+        'pydot==1.4.1',
+        'graphviz==0.10.1'
     ],
 
     dependency_links=[
@@ -37,6 +40,5 @@ setup(
         'console_scripts': [
             'runner = src.runner:main',
         ],
-    },
-
+    }
 )
