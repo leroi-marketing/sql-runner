@@ -88,6 +88,6 @@ class QueryList(list):
                 # Get list of individual specific statements and process them
                 for stmt in getattr(query, stmt_type).split(';'):
                     if stmt.strip():
-                        self.db.execute(stmt)
+                        self.db.execute(stmt, query)
             print(datetime.datetime.now() - start)
         print('Run finished in {}'.format(datetime.datetime.now() - run_start))

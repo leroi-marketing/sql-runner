@@ -6,6 +6,9 @@ from textwrap import dedent
 
 from src.db import Query, DB
 
+class SnowflakeQuery(Query):
+    pass
+
 
 class SnowflakeDB(DB):
     def __init__(self, config: SimpleNamespace):
@@ -14,7 +17,7 @@ class SnowflakeDB(DB):
         cursor.execute(f'USE DATABASE {config.auth.database}')
         self.cursor = cursor
 
-    def execute(self, stmt: str, query: Query = None):
+    def execute(self, stmt: str, query: SnowflakeQuery = None):
         """Execute statement using DB-specific connector
         """
         try:
@@ -26,11 +29,8 @@ class SnowflakeDB(DB):
                     ERROR: executing '{query.name}':
                     SQL path "{query.path}"'''
                 )
-            msg += dedent(f"""
-                {stmt}\n{traceback.format_exc()}\n""")
+            else:
+                msg = "ERROR: executing query:\n\n"
+            msg += f"\n\n{stmt}\n\n{traceback.format_exc()}\n"
             sys.stderr.write(msg)
             exit(1)
-
-
-class SnowflakeQuery(Query):
-    pass
