@@ -4,6 +4,7 @@ import sys
 import re
 from types import SimpleNamespace
 from textwrap import dedent
+from typing import List, Dict
 
 from src.db import Query, DB
 
@@ -23,15 +24,7 @@ class AzureDwhQuery(Query):
     def object_exists_stmt(self, schema_name: str, table: bool = False, view: bool = False):
         """ Returns statement that, when executed, returns TRUE when the current object (of specified type) exists
         """
-        if table or view:
-            if table:
-                src = 'tables'
-            elif view:
-                src = 'views'
-            join = f"JOIN sys.{src} o ON o.schema_id = s.schema_id AND o.name='{self.table_name}'"
-        else:
-            join = ''
-        return f"EXISTS (SELECT 1 FROM sys.schemas s {join} WHERE s.name='{schema_name}')"
+        return AzureDwhDB.object_exists_stmt(schema_name, self.table_name, table=table, view=view)
 
     def schema_exists_stmt(self, schema_name: str) -> str:
         """ Returns statement that, when executed, returns TRUE when the schema exists
@@ -175,6 +168,62 @@ class AzureDwhDB(DB):
             flags=re.IGNORECASE | re.DOTALL
         )
 
+    @staticmethod
+    def object_exists_stmt(schema_name: str, child_name='', table: bool = False, view: bool = False):
+        """ Returns statement that, when executed, returns TRUE when the current object (of specified type) exists
+        """
+        if table or view:
+            if table:
+                src = 'tables'
+            elif view:
+                src = 'views'
+            join = f"JOIN sys.{src} o ON o.schema_id = s.schema_id AND o.name='{child_name}'"
+        else:
+            join = ''
+        return f"EXISTS (SELECT 1 FROM sys.schemas s {join} WHERE s.name='{schema_name}')"
+
+    def clean_schemas(self, prefix: str):
+        """ Drop schemata that have a specific name prefix
+        """
+        cmd = f"""
+        SELECT
+            name
+        FROM sys.schemas
+        WHERE
+            name LIKE '{prefix}%'
+            OR schema_id NOT IN (SELECT schema_id FROM sys.tables)
+            AND name LIKE '%_mat'"""
+
+        self.execute(cmd)
+        for schema_name in self.cursor.fetchall():
+            self.drop_schema_cascade(schema_name[0])
+
+    def save(self, monitor_schema: str, dependencies: List[Dict]):
+        """ Save dependencies list in the database in the `monitor_schema` schema
+        """
+        template = f"""
+            INSERT INTO {monitor_schema}.table_deps
+            VALUES ('{{source_schema}}','{{source_table}}','{{dependent_schema}}','{{dependent_table}}');"""
+        inserts = '\b'.join(template.format(**item) for item in dependencies)
+
+        self.execute(f"""
+        IF NOT {AzureDwhDB.object_exists_stmt(monitor_schema)}
+            CREATE SCHEMA {monitor_schema};""")
+
+        self.execute(f"""
+            IF NOT {AzureDwhDB.object_exists_stmt(monitor_schema, 'table_deps', table=True)}
+                CREATE TABLE {monitor_schema}.table_deps 
+                (
+                source_schema    VARCHAR,
+                source_table     VARCHAR,
+                dependent_schema VARCHAR,
+                dependent_table  VARCHAR
+                );"""
+        )
+
+        self.execute(f'TRUNCATE TABLE {monitor_schema}.table_deps;')
+
+        self.execute(inserts)
 
     def execute(self, stmt: str, query: AzureDwhQuery = None):
         """Execute statement using DB-specific connector

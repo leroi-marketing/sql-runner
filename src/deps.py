@@ -47,56 +47,14 @@ class Dependencies:
     def clean_schemas(self, prefix: str):
         """ Drop schemata that have a specific name prefix
         """
-        if self.config.database_type == 'redshift' or self.config.database_type == 'postgres':
-            cmd = f"""
-            SELECT schema_name
-            FROM information_schema.schemata
-            WHERE schema_name ~ '^{prefix}.*'
-            OR    schema_name NOT IN (SELECT table_schema FROM information_schema.tables)
-            AND   schema_name ~ '.*_mat$';"""
-
-        elif self.config.database_type == 'snowflake':
-            prefix = prefix.upper()
-            cmd = f"""
-            WITH filter_ AS
-            (
-              SELECT DISTINCT table_schema AS table_schema
-              FROM information_schema.tables
-            )
-            SELECT DISTINCT schema_name AS schema_name_
-            FROM information_schema.schemata schemata
-              LEFT JOIN filter_ ON filter_.table_schema = schema_name
-            WHERE regexp_like(schema_name_,'^{prefix}.*')
-            OR (filter_.table_schema IS NULL AND regexp_like(schema_name_,'.*_MAT$'));"""
-
-        self.db.execute(cmd)
-        for schema_name in self.db.cursor.fetchall():
-            self.db.execute(f"DROP SCHEMA {schema_name[0]} CASCADE;")
+        self.db.clean_schemas(prefix)
 
     def save(self, monitor_schema: str):
         """ Save dependencies list in the database in the `monitor_schema` schema
         """
         if not self.dependencies:
             return
-
-        template = "('{source_schema}','{source_table}','{dependent_schema}','{dependent_table}')"
-        values = ',\n'.join(template.format(**item) for item in self.dependencies)
-        self.db.execute(f'CREATE SCHEMA IF NOT EXISTS {monitor_schema};')
-        self.db.execute(f"""
-            CREATE TABLE IF NOT EXISTS {monitor_schema}.table_deps 
-            (
-            source_schema    VARCHAR,
-            source_table     VARCHAR,
-            dependent_schema VARCHAR,
-            dependent_table  VARCHAR
-            );"""
-        )
-        self.db.execute(f'TRUNCATE {monitor_schema}.table_deps;')
-        insert_stmt = f"""
-            INSERT INTO {monitor_schema}.table_deps
-            VALUES
-            {values}"""
-        self.db.execute(insert_stmt)
+        self.db.save(monitor_schema, self.dependencies)
 
     def viz(self):
         def lookup(node_name: str, config_attr: str) -> str:

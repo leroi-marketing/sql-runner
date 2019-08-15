@@ -2,7 +2,7 @@ import os
 import re
 from textwrap import dedent
 from types import SimpleNamespace
-from typing import List, Union, Tuple
+from typing import List, Dict, Union, Tuple
 
 
 class Query(object):
@@ -126,6 +126,34 @@ class DB():
         """Execute statement using DB-specific connector
         """
         raise Exception(f"`execute()` not implemented for type {type(self)}")
+
+    def clean_schemas(self, prefix: str):
+        """ Drop schemata that have a specific name prefix
+        """
+        raise Exception(f"`clean_schemas()` not implemented for type {type(self)}")
+    
+    def save(self, monitor_schema: str, dependencies: List[Dict]):
+        """ Save dependencies list in the database in the `monitor_schema` schema
+        """
+        template = "('{source_schema}','{source_table}','{dependent_schema}','{dependent_table}')"
+        values = ',\n'.join(template.format(**item) for item in dependencies)
+
+        self.execute(f'CREATE SCHEMA IF NOT EXISTS {monitor_schema};')
+        self.execute(f"""
+            CREATE TABLE IF NOT EXISTS {monitor_schema}.table_deps 
+            (
+            source_schema    VARCHAR,
+            source_table     VARCHAR,
+            dependent_schema VARCHAR,
+            dependent_table  VARCHAR
+            );"""
+        )
+        self.execute(f'TRUNCATE {monitor_schema}.table_deps;')
+        insert_stmt = f"""
+            INSERT INTO {monitor_schema}.table_deps
+            VALUES
+            {values}"""
+        self.execute(insert_stmt)
 
     def fetchone(self):
         return self.cursor.fetchone()
