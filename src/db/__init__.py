@@ -5,25 +5,6 @@ from types import SimpleNamespace
 from typing import List, Union, Tuple
 
 
-class DB():
-    def __init__(self, config: SimpleNamespace):
-        self.cursor = None
-    
-    def execute(self, stmt: str):
-        """Execute statement using DB-specific connector
-        """
-        raise Exception(f"`execute()` not implemented for type {type(self)}")
-
-    def fetchone(self):
-        return self.cursor.fetchone()
-
-    def fetchmany(self):
-        return self.cursor.fetchmany()
-
-    def fetchall(self):
-        return self.cursor.fetchall()
-
-
 class Query(object):
 
     default_schema_prefix = 'zz_'
@@ -49,31 +30,9 @@ class Query(object):
     def __repr__(self):
         return f'{self.schema_prefix}{self.schema_name}.{self.table_name} > {self.action}'
 
-    def check_uniqueness(self, cursor):
-        """ Check if unique keys for current table make sense, and prints offending keys
-        """
-        if len(self.unique_keys) > 0:
-            print(f'check uniqueness for {self.name}')
-            for key in self.unique_keys:
-                select_key_stmt = f"""
-                SELECT '{key}' AS offending_key, COUNT(*)
-                FROM (
-                  SELECT
-                    {key}
-                  FROM {self.name}
-                  WHERE {key} IS NOT NULL
-                  GROUP BY 1
-                  HAVING COUNT(*) > 1
-                ) AS tmp
-                GROUP BY 1;
-                """
-                cursor.execute(select_key_stmt)
-                for line in cursor:
-                    print(line)
-
     @property
     def name(self) -> str:
-        """ Table name
+        """ Full Table name
         """
         return f'{self.schema_prefix}{self.schema_name}.{self.table_name}'
 
@@ -159,6 +118,25 @@ class Query(object):
         return ""
 
 
+class DB():
+    def __init__(self, config: SimpleNamespace):
+        self.cursor = None
+    
+    def execute(self, stmt: str, query: Query = None):
+        """Execute statement using DB-specific connector
+        """
+        raise Exception(f"`execute()` not implemented for type {type(self)}")
+
+    def fetchone(self):
+        return self.cursor.fetchone()
+
+    def fetchmany(self):
+        return self.cursor.fetchmany()
+
+    def fetchall(self):
+        return self.cursor.fetchall()
+
+
 def get_db_and_query_classes(config: SimpleNamespace) -> Tuple[DB, Query]:
     """Returns database specific connector and query class
     """
@@ -175,4 +153,3 @@ def get_db_and_query_classes(config: SimpleNamespace) -> Tuple[DB, Query]:
     else:
         raise Exception(f"Unknown database type: {config.database_type}")
     return _DB, _Query
-    

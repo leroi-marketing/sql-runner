@@ -2,9 +2,6 @@ import re
 from textwrap import dedent
 from src.db.postgres import PostgresQuery, PostgresDB
 
-class RedshiftDB(PostgresDB):
-    pass
-
 
 class RedshiftQuery(PostgresqlQuery):
     @property
@@ -66,3 +63,7 @@ class RedshiftQuery(PostgresqlQuery):
         AS
         SELECT * FROM {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name};
         """)
+
+
+class RedshiftDB(PostgresDB):
+    pass

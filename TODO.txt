@@ -4,7 +4,6 @@ TODO: move cleanup to QueryList class
 TODO: move test function to Query class
 TODO: move execute function to Query class
 TODO: solve if cases in runnder.py more elegantly
-TODO: remove check_uniqueness
 TODO: remove unique_keys
 
 
