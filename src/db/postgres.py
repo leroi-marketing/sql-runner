@@ -34,3 +34,16 @@ class PostgresDB(DB):
             sys.stderr.write(msg)
             exit(1)
 
+    def clean_schemas(self, prefix: str):
+        """ Drop schemata that have a specific name prefix
+        """
+        cmd = f"""
+        SELECT schema_name
+        FROM information_schema.schemata
+        WHERE schema_name ~ '^{prefix}.*'
+        OR    schema_name NOT IN (SELECT table_schema FROM information_schema.tables)
+        AND   schema_name ~ '.*_mat$';"""
+
+        self.execute(cmd)
+        for schema_name in self.cursor.fetchall():
+            self.execute(f"DROP SCHEMA {schema_name[0]} CASCADE;")
