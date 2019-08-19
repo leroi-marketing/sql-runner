@@ -17,18 +17,22 @@ sqlrunner --deps
 
 The supported databases are Redshift, Snowflake and Postgres.
 ### Installation
-Pull repository and install dependencies
-```sh
-sudo apt install python3-pip
-sudo apt install graphviz
-pip install git+https://github.com/leroi-marketing/sql-runner.git[s3,azuredwh] #other optional dependencies
-```
 Additionally for Azure DWH, it's required to install the [Microsoft ODBC Driver](https://docs.microsoft.com/en-us/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server?view=sql-server-2017). For Ubuntu 18.04 this is sufficient:
 ```sh
-sudo curl https://packages.microsoft.com/config/ubuntu/18.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+# In case any of these gest stuck, simply run `sudo su` once, to cache the password, then exit using Ctrl+D
+curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+curl https://packages.microsoft.com/config/ubuntu/18.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list > /dev/null
 sudo apt-get update
 sudo ACCEPT_EULA=Y apt-get install msodbcsql17
 sudo apt-get install unixodbc-dev
+```
+
+Install as pip package
+```sh
+sudo apt install python3-pip
+sudo apt install graphviz
+# Install with dependencies, ex. s3 and azuredwh
+pip install git+https://github.com/leroi-marketing/sql-runner.git#egg=sql-runner[s3,azuredwh]
 ```
 
 ### Configuration
