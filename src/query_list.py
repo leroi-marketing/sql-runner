@@ -42,9 +42,11 @@ class QueryList(list):
                 csv_string.append(f.read().strip())
         return QueryList(config, '\n'.join(csv_string))
 
-    def test(self):
+
+    def test(self, staging=False):
         """ Test exeution of query list, if `test` is passed into the arguments
         """
+
         if hasattr(self.config, 'test_schema_prefix'):
             schema_prefix = self.config.test_schema_prefix
         else:
@@ -69,10 +71,12 @@ class QueryList(list):
             query.schema_prefix = schema_prefix
             for full_table_name in full_table_names:
                 query.query = query.query.replace(' ' + full_table_name, ' ' + schema_prefix + full_table_name)
-            if query.action == 'e':
-                query.action = 's'
-            else:
-                query.action = 'v'
+
+            if staging is False:
+                if query.action == 'e':
+                    query.action = 's'
+                else:
+                    query.action = 'v'
         self.execute()
 
     def execute(self):

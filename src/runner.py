@@ -26,6 +26,11 @@ def main():
         help='Test execution of statements based on the provided list of CSV command files',
         nargs='*'
     )
+    parser.add_argument(
+        '--staging',
+        help='Executes commands as specified, but in staging schema',
+        nargs='*'
+    )
     command_group.add_argument(
         '--deps',
         help='View dependencies graph',
@@ -71,6 +76,9 @@ def main():
     elif args.test:
         query_list.QueryList.from_csv_files(config, args.test).test()
         deps.Dependencies(config).clean_schemas(schema_prefix)
+
+    elif args.staging:
+        query_list.QueryList.from_csv_files(config, args.staging).test(True)
 
     elif args.deps:
         schema = config.deps_schema
