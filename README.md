@@ -4,15 +4,15 @@ The LEROI SQL runner has three basic functionalities
 
 * executing SQL code in a specific order
 ```
-sqlrunner --execute {RUNNER_FILE_1}, {RUNNER_FILE_2} ..
+runner --execute {RUNNER_FILE_1}, {RUNNER_FILE_2} ..
 ```
 * quickly testing SQL code through temporary creation of views
 ```
-sqlrunner --test {RUNNER_FILE_1}, {RUNNER_FILE_2} ..
+runner --test {RUNNER_FILE_1}, {RUNNER_FILE_2} ..
 ```
 * plotting of a dependency graph
 ```
-sqlrunner --deps
+runner --deps
 ```
 
 The supported databases are Redshift, Snowflake and Postgres.
