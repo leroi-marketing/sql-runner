@@ -45,13 +45,15 @@ class AzureDwhQuery(Query):
     def create_table_stmt(self) -> str:
         """ Statement that creates a table out of `select_stmt`
         """
-        schema_name = f"{self.schema_name}{self.schema_suffix}"
+        schema_name = f"{self.schema_name}"
         # https://docs.microsoft.com/en-us/sql/t-sql/statements/create-table-as-select-azure-sql-data-warehouse?view=azure-sqldw-latest
         return dedent(f"""
         IF NOT {self.schema_exists_stmt(schema_name)}
             EXEC('CREATE SCHEMA {schema_name}');
         IF {self.table_exists_stmt(schema_name)}
             DROP TABLE {self.name};
+        IF {self.view_exists_stmt(schema_name)}
+            DROP VIEW {self.name};
         CREATE TABLE {self.name}
         WITH ( {self.distribution} )
         AS
@@ -62,12 +64,14 @@ class AzureDwhQuery(Query):
     def create_view_stmt(self) -> str:
         """ Statement that creates a view out of `select_stmt`
         """
-        schema_name = f"{self.schema_prefix}{self.schema_name}{self.schema_suffix}"
+        schema_name = f"{self.schema_prefix}{self.schema_name}"
         return dedent(f"""
         IF NOT {self.schema_exists_stmt(schema_name)}
             EXEC('CREATE SCHEMA {schema_name}');
         IF {self.view_exists_stmt(schema_name)}
             DROP VIEW {schema_name}.{self.table_name};
+        IF {self.table_exists_stmt(schema_name)}
+            DROP TABLE {schema_name}.{self.table_name};
         CREATE VIEW {schema_name}.{self.table_name}
         AS
         {self.select_stmt};
@@ -83,11 +87,15 @@ class AzureDwhQuery(Query):
         return dedent(f"""
         IF NOT {self.schema_exists_stmt(table_schema)}
             EXEC('CREATE SCHEMA {table_schema}');
-        IF {self.view_exists_stmt(table_schema)}
-            DROP VIEW {table_schema}.{self.table_name};
 
         IF {self.table_exists_stmt(table_schema)}
             DROP TABLE {table_schema}.{self.table_name};
+
+        IF {self.view_exists_stmt(view_schema)}
+            DROP VIEW {view_schema}.{self.table_name};
+
+        IF {self.table_exists_stmt(view_schema)}
+            DROP TABLE {view_schema}.{self.table_name};
 
         CREATE TABLE {table_schema}.{self.table_name}
         WITH (
