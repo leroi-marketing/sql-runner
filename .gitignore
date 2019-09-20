@@ -5,6 +5,6 @@ __pycache__/
 build/
 dist/
 *.egg-info
-auth/config.json
+auth/config*.json
 testing
 dependencies.svg
