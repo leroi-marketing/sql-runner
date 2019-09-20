@@ -1,14 +1,9 @@
 TODO: split auth and config to have config in git
 TODO: move config into src and complete custom config with default values
-TODO: check whether move from SimpleNamespace back to dict for config
-TODO: split auth and config to have config in git
-TODO: move config into src and complete custom config with default values
-TODO: check whether move from SimpleNamespace back to dict for config
 TODO: move cleanup to QueryList class
 TODO: move test function to Query class
 TODO: move execute function to Query class
 TODO: solve if cases in runnder.py more elegantly
-TODO: remove check_uniqueness
 TODO: remove unique_keys
 
 

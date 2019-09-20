@@ -1,20 +1,60 @@
 import argparse
-import query_list
-import deps
 import json
 import os
 from types import SimpleNamespace
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='Parse arguments SQL runner.')
-    parser.add_argument('--config', nargs='?', default='auth/config.json')
-    parser.add_argument('--execute', nargs='*')
-    parser.add_argument('--test', nargs='*')
-    parser.add_argument('--staging', nargs='*')
-    parser.add_argument('--deps', action='store_const', const=True, default=False)
-    parser.add_argument('--database', nargs='?', default=False)
-    parser.add_argument('--clean', nargs='?', default='test_')
+    parser.add_argument(
+        '--config',
+        help='Path to the config file',
+        nargs='?',
+        default='auth/config.json'
+    )
+
+    command_group = parser.add_mutually_exclusive_group(required=True)
+
+    command_group.add_argument(
+        '--execute',
+        metavar='csv_file',
+        help='Execute statements based on the provided list of CSV command files',
+        nargs='*'
+    )
+    command_group.add_argument(
+        '--test',
+        metavar='test_csv_file',
+        help='Test execution of statements based on the provided list of CSV command files',
+        nargs='*'
+    )
+    parser.add_argument(
+        '--staging',
+        help='Executes commands as specified, but in staging schema',
+        nargs='*'
+    )
+    command_group.add_argument(
+        '--deps',
+        help='View dependencies graph',
+        action='store_const',
+        const=True,
+        default=False
+    )
+    command_group.add_argument(
+        '--clean',
+        help='Schemata prefix to clean up',
+        nargs='?',
+        default='test_'
+    )
+
+    parser.add_argument(
+        '--database',
+        help='Database name',
+        nargs='?',
+        default=False
+    )
     args = parser.parse_args()
+
+
+    from src import deps, query_list, db
 
     with open(args.config) as f:
         config = SimpleNamespace(**json.load(f))
@@ -23,7 +63,7 @@ if __name__ == '__main__':
     if hasattr(config, 'test_schema_prefix'):
         schema_prefix = config.test_schema_prefix
     else:
-        schema_prefix = query_list.Query.default_schema_prefix
+        schema_prefix = db.Query.default_schema_prefix
 
     if args.database:
         config.auth['database'] = args.database
@@ -48,3 +88,7 @@ if __name__ == '__main__':
 
     elif args.clean:
         deps.Dependencies(config).clean_schemas(args.clean)
+
+
+if __name__ == '__main__':
+    main()

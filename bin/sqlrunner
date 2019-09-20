@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 export PYTHONPATH=/home/ubuntu/sql-runner/src
 cd /home/ubuntu/sql-runner
 python3 -u src/runner.py "$@"

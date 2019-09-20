@@ -1,7 +1,10 @@
 .idea/
 .vscode/
 venv/
-src/__pycache__
-auth/config.json
+__pycache__/
+build/
+dist/
+*.egg-info
+auth/config*.json
 testing
 dependencies.svg
