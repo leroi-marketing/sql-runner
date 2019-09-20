@@ -212,24 +212,24 @@ class AzureDwhDB(DB):
         template = f"""
             INSERT INTO {monitor_schema}.table_deps
             VALUES ('{{source_schema}}','{{source_table}}','{{dependent_schema}}','{{dependent_table}}');"""
-        inserts = '\b'.join(template.format(**item) for item in dependencies)
+        inserts = '\n'.join(template.format(**item) for item in dependencies)
 
         self.execute(f"""
         IF NOT {AzureDwhDB.object_exists_stmt(monitor_schema)}
-            CREATE SCHEMA {monitor_schema};""")
+            EXEC('CREATE SCHEMA {monitor_schema}');""")
 
         self.execute(f"""
-            IF NOT {AzureDwhDB.object_exists_stmt(monitor_schema, 'table_deps', table=True)}
-                CREATE TABLE {monitor_schema}.table_deps 
-                (
-                source_schema    VARCHAR,
-                source_table     VARCHAR,
-                dependent_schema VARCHAR,
-                dependent_table  VARCHAR
-                );"""
-        )
+            IF {AzureDwhDB.object_exists_stmt(monitor_schema, 'table_deps', table=True)}
+                DROP TABLE {monitor_schema}.table_deps;
 
-        self.execute(f'TRUNCATE TABLE {monitor_schema}.table_deps;')
+            CREATE TABLE {monitor_schema}.table_deps
+            (
+            source_schema    NVARCHAR(2000),
+            source_table     NVARCHAR(2000),
+            dependent_schema NVARCHAR(2000),
+            dependent_table  NVARCHAR(2000)
+            );"""
+        )
 
         self.execute(inserts)
 

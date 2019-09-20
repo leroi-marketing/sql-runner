@@ -72,8 +72,8 @@ class Dependencies:
                         break
             return value
 
-        dependency_tuples = [(f'{item.source_schema}.{item.source_table}',
-                              f'{item.dependent_schema}.{item.dependent_table}'
+        dependency_tuples = [(f'{item["source_schema"]}.{item["source_table"]}',
+                              f'{item["dependent_schema"]}.{item["dependent_table"]}'
                               ) for item in self.dependencies]
         g = nx.MultiDiGraph()
         edges = [(from_, to_, {'fontsize': 10.0, 'penwidth': 1}) for from_, to_ in dependency_tuples]
