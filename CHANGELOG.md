@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.2 (2019-09-23)
+- Fix Python 3.6 compatibility
+
 ## 0.2.1 (2019-09-20)
 - Merge pull request that adds support for staging runs
 - Fix dependency viewer for Azure Data Warehouse

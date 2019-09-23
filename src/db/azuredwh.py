@@ -164,7 +164,7 @@ class AzureDwhDB(DB):
     def drop_schema_cascade_replacement(self, stmt: str) -> str:
         """ If the statement has `DROP SCHEMA x CASCADE`, do this in Python and remove the statement
         """
-        def replace(match: re.Match) -> str:
+        def replace(match) -> str:
             schema = match.groups()[0]
             self.drop_schema_cascade(schema)
             return 'SELECT 1'
