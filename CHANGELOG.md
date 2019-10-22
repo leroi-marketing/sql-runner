@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.3 (2019-10-21)
+- Add interactive runner `run_sql path/to/config.json`
+
 ## 0.2.2 (2019-09-23)
 - Fix Python 3.6 compatibility
 

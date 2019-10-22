@@ -6,7 +6,7 @@ def get_long_description():
 
 setup(
     name='sql-runner',
-    version='0.2.2',
+    version='0.2.3',
 
     description="LEROI SQL runner",
     long_description=get_long_description(),
@@ -17,7 +17,8 @@ setup(
     install_requires=[
         'networkx==2.2',
         'pydot==1.4.1',
-        'graphviz==0.10.1'
+        'graphviz==0.10.1',
+        'pythondialog'
     ],
 
     dependency_links=[
@@ -39,6 +40,7 @@ setup(
     entry_points={
         'console_scripts': [
             'runner = src.runner:main',
+            'run_sql = src.run_sql:main'
         ],
     }
 )
