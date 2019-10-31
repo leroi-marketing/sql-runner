@@ -5,13 +5,12 @@ import networkx as nx
 from src.db import get_db_and_query_classes, DB
 from types import SimpleNamespace
 from typing import Set, List, Dict
+from functools import lru_cache
 
 
 class Dependencies:
     def __init__(self, config: SimpleNamespace):
         self.config = config
-        dbclass, _ = get_db_and_query_classes(config)
-        self.db: DB = dbclass(config)
 
         def get_query_sources(select_stmt: str) -> Set[str]:
             """ Get set of tables mentioned in the select statement
@@ -44,6 +43,25 @@ class Dependencies:
                                         'dependent_table': dependent_table
                                     })
 
+    @property
+    @lru_cache(maxsize=1)
+    def db(self) -> DB:
+        dbclass, _ = get_db_and_query_classes(self.config)
+        return dbclass(self.config)
+
+    @property
+    @lru_cache(maxsize=1)
+    def dag(self) -> nx.MultiDiGraph:
+        """Computes a DAG using networkx. Each node is a (schema, table) tuple.
+        """
+        dependency_tuples = [(f'{item["source_schema"]}.{item["source_table"]}',
+                              f'{item["dependent_schema"]}.{item["dependent_table"]}'
+                              ) for item in self.dependencies]
+        dg = nx.MultiDiGraph()
+        edges = [(from_, to_, {'fontsize': 10.0, 'penwidth': 1}) for from_, to_ in dependency_tuples]
+        dg.add_edges_from(edges)
+        return dg
+
     def clean_schemas(self, prefix: str):
         """ Drop schemata that have a specific name prefix
         """
@@ -72,20 +90,15 @@ class Dependencies:
                         break
             return value
 
-        dependency_tuples = [(f'{item["source_schema"]}.{item["source_table"]}',
-                              f'{item["dependent_schema"]}.{item["dependent_table"]}'
-                              ) for item in self.dependencies]
-        g = nx.MultiDiGraph()
-        edges = [(from_, to_, {'fontsize': 10.0, 'penwidth': 1}) for from_, to_ in dependency_tuples]
-        g.add_edges_from(edges)
-        for node in g.nodes:
-            g.node[node].update({
+        dag = self.dag
+        for node in dag.nodes:
+            dag.node[node].update({
                 'fillcolor': lookup(node, 'colors'),
                 'shape': lookup(node, 'shapes'),
                 'style': 'filled'
             })
         os.environ["PATH"] += os.pathsep + self.config.graphviz_path
-        nx.drawing.nx_pydot.to_pydot(g).write_svg('dependencies.svg')
+        nx.drawing.nx_pydot.to_pydot(dag).write_svg('dependencies.svg')
         if self.config.s3_bucket:
             import boto3
             s3 = boto3.resource('s3')

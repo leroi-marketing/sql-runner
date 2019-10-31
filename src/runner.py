@@ -69,25 +69,26 @@ def main():
         config.auth['database'] = args.database
         config.sql_path = config.sql_path + args.database
 
+    dependencies = deps.Dependencies(config)
+
     if args.execute:
-        query_list.QueryList.from_csv_files(config, args.execute).execute()
-        deps.Dependencies(config).clean_schemas(schema_prefix)
+        query_list.QueryList.from_csv_files(config, args.execute, dependencies.dependencies).execute()
+        dependencies.clean_schemas(schema_prefix)
 
     elif args.test:
-        query_list.QueryList.from_csv_files(config, args.test).test()
-        deps.Dependencies(config).clean_schemas(schema_prefix)
+        query_list.QueryList.from_csv_files(config, args.test, dependencies.dependencies).test()
+        dependencies.clean_schemas(schema_prefix)
 
     elif args.staging:
-        query_list.QueryList.from_csv_files(config, args.staging).test(True)
+        query_list.QueryList.from_csv_files(config, args.staging, dependencies.dependencies).test(True)
 
     elif args.deps:
         schema = config.deps_schema
-        d = deps.Dependencies(config)
-        d.save(schema)
-        d.viz()
+        dependencies.save(schema)
+        dependencies.viz()
 
     elif args.clean:
-        deps.Dependencies(config).clean_schemas(args.clean)
+        dependencies.clean_schemas(args.clean)
 
 
 if __name__ == '__main__':

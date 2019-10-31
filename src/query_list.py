@@ -7,6 +7,7 @@ import traceback
 from textwrap import dedent
 from types import SimpleNamespace
 from typing import Union, Any, Dict, List
+from collections import defaultdict
 
 from src.db import DB, Query, get_db_and_query_classes
 
@@ -20,16 +21,36 @@ class QueryList(list):
         's': 'skip'
     }
 
-    def __init__(self, config: SimpleNamespace, csv_string: str):
+    def __init__(self, config: SimpleNamespace, csv_string: str, dependencies: List[Dict]):
         DBClass, QueryClass = get_db_and_query_classes(config)
         self.config = config
         self.db: DB = DBClass(config)
+        given_order = []
+        available_set = {}
         for query in csv.DictReader(io.StringIO(csv_string.strip()), delimiter=';'):
             if not query['schema_name'].startswith('#'):
-                self.append(QueryClass(config, **query))
+                given_order.append(query)
+                available_set[(query['schema_name'], query['table_name'])] = query
+        
+        indexed_dependencies = defaultdict(list)
+        for d in dependencies:
+            indexed_dependencies[(d['dependent_schema'], d['dependent_table'])].append(
+                (d['source_schema'], d['source_table'])
+            )
+
+        def add_query(schema, table):
+            if (schema, table) in indexed_dependencies:
+                for dep in indexed_dependencies[(schema, table)]:
+                    add_query(*dep)
+            if (schema, table) in available_set:
+                self.append(QueryClass(config, **available_set[(schema, table)]))
+                del available_set[(schema, table)]
+        
+        for query in given_order:
+            add_query(query['schema_name'], query['table_name'])
 
     @staticmethod
-    def from_csv_files(config: SimpleNamespace, csv_files: List[str]) -> "QueryList":
+    def from_csv_files(config: SimpleNamespace, csv_files: List[str], dependencies: List[Dict]) -> "QueryList":
         """ Creates a query list from a list of CSV file names, passed in as Command Line Arguments
         """
         if not isinstance(csv_files, list):
@@ -40,7 +61,7 @@ class QueryList(list):
             file_path = f'{config.sql_path}/{file}.csv'
             with open(file_path, 'r') as f:
                 csv_string.append(f.read().strip())
-        return QueryList(config, '\n'.join(csv_string))
+        return QueryList(config, '\n'.join(csv_string), dependencies)
 
 
     def test(self, staging=False):
