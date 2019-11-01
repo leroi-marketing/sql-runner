@@ -1,8 +1,11 @@
 import os
 import re
 from textwrap import dedent
-from types import SimpleNamespace
+from types import SimpleNamespace, FunctionType
 from typing import List, Dict, Union, Tuple
+from functools import partial
+import csv, io
+from src import tests
 
 
 class Query(object):
@@ -29,6 +32,22 @@ class Query(object):
 
     def __repr__(self):
         return f'{self.schema_prefix}{self.schema_name}.{self.table_name} > {self.action}'
+
+    @property
+    def assertion(self) -> FunctionType:
+        match = re.match(r'\/\*\s*(assert_[a-z_]+)\s*(.*?)\s*\*\/', self.query, re.DOTALL)
+        if match:
+            check = match.group(1)
+            if not hasattr(tests, check):
+                raise Exception(f"Check '{check}' is not defined")
+            # Arguments can be passed after this. CSV-style comma-separated values with strings being put in
+            # mandatory quotes
+            args = match.group(2)
+            if args:
+                args = next(csv.reader(io.StringIO(args), quoting=csv.QUOTE_NONNUMERIC))
+            check_fun = getattr(tests, check)
+            return partial(check_fun, *args)
+        return None
 
     @property
     def name(self) -> str:
@@ -111,6 +130,10 @@ class Query(object):
         AS
         SELECT * FROM {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name};
         """)
+
+    @property
+    def run_check_stmt(self) -> str:
+        return dedent(self.select_stmt)
 
     def skip(self):
         """ Empty statement, skip

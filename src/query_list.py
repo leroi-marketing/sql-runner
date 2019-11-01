@@ -18,6 +18,7 @@ class QueryList(list):
         't': 'create_table_stmt',
         'v': 'create_view_stmt',
         'm': 'materialize_view_stmt',
+        'check': 'run_check_stmt',
         's': 'skip'
     }
 
@@ -108,11 +109,15 @@ class QueryList(list):
             start = datetime.datetime.now()
             print(query)
             if query.action in QueryList.actions:
-                # Any of 'query', 'create_table_stmt', 'create_view_stmt', 'materialize_view_stmt'
+                # Any of 'query', 'create_table_stmt', 'create_view_stmt', 'materialize_view_stmt', 'run_check'
                 stmt_type = QueryList.actions[query.action]
                 # Get list of individual specific statements and process them
                 for stmt in getattr(query, stmt_type).split(';'):
                     if stmt.strip():
                         self.db.execute(stmt, query)
+                        # Perform any tests
+                        assertion = query.assertion
+                        if assertion:
+                            assertion(rows=self.db.fetchall())
             print(datetime.datetime.now() - start)
         print('Run finished in {}'.format(datetime.datetime.now() - run_start))

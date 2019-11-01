@@ -1,1 +1,3 @@
 x_testdata;generate_testdata;e
+x_testdata;check_rowcount;check
+x_testdata;check_col2;check

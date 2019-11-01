@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.5 (2019-11-01)
+- Add data testing feature
+
 ## 0.2.4 (2019-10-31)
 - Dependency-aware ordered statement execution
 

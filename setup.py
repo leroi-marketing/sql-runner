@@ -6,7 +6,7 @@ def get_long_description():
 
 setup(
     name='sql-runner',
-    version='0.2.4',
+    version='0.2.5',
 
     description="LEROI SQL runner",
     long_description=get_long_description(),
