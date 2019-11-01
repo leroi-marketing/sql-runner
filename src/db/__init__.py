@@ -135,6 +135,7 @@ class Query(object):
     def run_check_stmt(self) -> str:
         return dedent(self.select_stmt)
 
+    @property
     def skip(self):
         """ Empty statement, skip
         """

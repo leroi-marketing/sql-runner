@@ -87,15 +87,15 @@ class QueryList(list):
         
         # Change all queries to use schema_prefix
         # Plus change query actions:
-        # query => s (skip)
-        # *     => view
+        # query|check => s (skip)
+        # *           => view
         for query in self:
             query.schema_prefix = schema_prefix
             for full_table_name in full_table_names:
                 query.query = query.query.replace(' ' + full_table_name, ' ' + schema_prefix + full_table_name)
 
             if staging is False:
-                if query.action == 'e':
+                if query.action in {'e', 'check'}:
                     query.action = 's'
                 else:
                     query.action = 'v'
