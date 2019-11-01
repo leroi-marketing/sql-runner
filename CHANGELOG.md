@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.4 (2019-10-31)
+- Dependency-aware ordered statement execution
+
 ## 0.2.3 (2019-10-21)
 - Add interactive runner `run_sql path/to/config.json`
 
