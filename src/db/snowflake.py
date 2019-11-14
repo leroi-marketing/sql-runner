@@ -14,7 +14,7 @@ class SnowflakeDB(DB):
     def __init__(self, config: SimpleNamespace):
         connection = snowflake.connector.connect(**config.auth)
         cursor = connection.cursor()
-        cursor.execute(f'USE DATABASE {config.auth.database}')
+        cursor.execute(f'USE DATABASE {config.auth["database"]}')
         self.cursor = cursor
 
     def execute(self, stmt: str, query: SnowflakeQuery = None):

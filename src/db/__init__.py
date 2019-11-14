@@ -97,7 +97,6 @@ class Query(object):
         """
         return dedent(f"""
         CREATE SCHEMA IF NOT EXISTS {self.schema_name}{self.schema_suffix};
-        DROP TABLE IF EXISTS {self.name} CASCADE;
         DROP VIEW IF EXISTS {self.name} CASCADE;
         CREATE VIEW {self.name}
         AS

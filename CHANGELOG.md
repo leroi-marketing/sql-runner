@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.6 (2019-11-14)
+- Fix bugs with view creation on Snowflake / RedShift / Postgresql (`DROP TABLE IF EXISTS`)
+- Update snowflake connector
+- Separate snowflake from Azure BLOB
+- Add Azure BLOB as an optional dependency
+
 ## 0.2.5 (2019-11-01)
 - Add data testing feature
 
