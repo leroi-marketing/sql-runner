@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.7 (2019-11-18)
+- Return "legacy" CLI entry point `sqlrunner` which is the same as `runner`
+
 ## 0.2.6 (2019-11-14)
 - Fix bugs with view creation on Snowflake / RedShift / Postgresql (`DROP TABLE IF EXISTS`)
 - Update snowflake connector

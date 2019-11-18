@@ -6,7 +6,7 @@ def get_long_description():
 
 setup(
     name='sql-runner',
-    version='0.2.6',
+    version='0.2.7',
 
     description="LEROI SQL runner",
     long_description=get_long_description(),
@@ -41,6 +41,8 @@ setup(
     entry_points={
         'console_scripts': [
             'runner = src.runner:main',
+            # legacy
+            'sqlrunner = src.runner:main',
             'run_sql = src.run_sql:main'
         ],
     }
