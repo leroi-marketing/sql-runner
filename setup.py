@@ -6,7 +6,7 @@ def get_long_description():
 
 setup(
     name='sql-runner',
-    version='0.2.7',
+    version='0.2.8',
 
     description="LEROI SQL runner",
     long_description=get_long_description(),
@@ -25,11 +25,10 @@ setup(
     ],
 
     extras_require={
-        's3': ['boto3==1.9.75'],
-        'azureblob': ['azure-storage-blob==1.4.0'],
+        's3': ['boto3'],
         'snowflake': ['snowflake-connector-python==2.0.4'],
-        'redshift': ['psycopg2-binary==2.7.7'],
-        'postgres': ['psycopg2-binary==2.7.7'],
+        'redshift': ['psycopg2-binary'],
+        'postgres': ['psycopg2-binary'],
         'azuredwh': ['pyodbc']
     },
 
@@ -43,6 +42,7 @@ setup(
             'runner = src.runner:main',
             # legacy
             'sqlrunner = src.runner:main',
+            # Interactive
             'run_sql = src.run_sql:main'
         ],
     }

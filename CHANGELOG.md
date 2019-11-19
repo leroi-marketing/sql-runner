@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.8 (2019-11-19)
+- Streamline dependencies (remove superfluous version restrictions and redundant dependencies)
+- Update documentation
+
 ## 0.2.7 (2019-11-18)
 - Return "legacy" CLI entry point `sqlrunner` which is the same as `runner`
 
