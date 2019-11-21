@@ -60,7 +60,7 @@ class QueryList(list):
         csv_string = ['schema_name;table_name;action']
         for file in csv_files:
             file_path = f'{config.sql_path}/{file}.csv'
-            with open(file_path, 'r') as f:
+            with open(file_path, 'r', encoding=getattr(config, 'encoding', 'utf-8')) as f:
                 csv_string.append(f.read().strip())
         return QueryList(config, '\n'.join(csv_string), dependencies)
 

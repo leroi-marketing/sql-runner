@@ -28,8 +28,8 @@ class Dependencies:
                 for file_name in file_names:
                     if file_name[-4:] == '.sql':
                         file_path = os.path.normpath(os.path.join(root, file_name))
-                        with open(file_path, 'rb') as sql_file:
-                            select_stmt = sql_file.read().decode('utf-8')
+                        with open(file_path, 'r', encoding=getattr(self.config, 'encoding', 'utf-8')) as sql_file:
+                            select_stmt = sql_file.read()
                             if select_stmt != '':
                                 dependent_schema = os.path.basename(os.path.normpath(root))
                                 dependent_table = file_name[:-4]

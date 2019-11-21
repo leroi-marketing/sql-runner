@@ -27,7 +27,7 @@ class Query(object):
         self.path: str = os.path.abspath(os.path.normpath(path))
         if not os.path.isfile(self.path):
             raise ValueError(f'file {self.path} does not exist')
-        with open(self.path, 'r') as f:
+        with open(self.path, 'r', encoding=getattr(self.config, 'encoding', 'utf-8')) as f:
             self.query: str = f.read()
 
     def __repr__(self):

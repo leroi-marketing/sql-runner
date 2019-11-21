@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.9 (2019-11-21)
+- Fix file decoding with explicit optional `encoding` option in config, that defaults to `utf-8`
+
 ## 0.2.8 (2019-11-19)
 - Streamline dependencies (remove superfluous version restrictions and redundant dependencies)
 - Update documentation
