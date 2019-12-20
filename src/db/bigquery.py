@@ -78,7 +78,7 @@ class BigQueryQuery(Query):
         CREATE OR REPLACE TABLE `{self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name}` {self.partition_by_stmt} {self.options_stmt}
         AS
         {self.select_stmt};
-        DROP VIEW IF EXISTS `{self.name}` CASCADE;
+        DROP VIEW IF EXISTS `{self.name}`;
         CREATE VIEW `{self.name}`
         AS
         SELECT * FROM `{self.database}.{self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name}`;
@@ -103,8 +103,10 @@ class BigQueryDB(DB):
         """
         def replace(match) -> str:
             schema = match.groups()[0]
-            self.create_schema(schema)
-            
+            try:
+                self.create_schema(schema)
+            except exceptions.Conflict:
+                pass
             return ''
 
         return re.sub(

@@ -1,4 +1,4 @@
-CREATE VIEW `d_testdev.myview3`
+CREATE OR REPLACE VIEW `d_testdev.myview3`
 AS
 SELECT *
-FROM `sqlrunner.test_data`;
+FROM `dept-sql-runner-sandbox.sqlrunner.test_data`;
