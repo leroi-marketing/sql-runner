@@ -47,7 +47,7 @@ def main():
 
     parser.add_argument(
         '--database',
-        help='Database name',
+        help='Database name to override for config. Will also change source directory for sql files.',
         nargs='?',
         default=False
     )

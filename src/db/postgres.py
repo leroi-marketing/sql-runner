@@ -11,7 +11,7 @@ class PostgresQuery(Query):
 
 
 class PostgresDB(DB):
-    def __init__(self, config: SimpleNamespace) -> psycopg2.extensions.cursor:
+    def __init__(self, config: SimpleNamespace):
         connection = psycopg2.connect(**config.auth, connect_timeout=3)
         connection.autocommit = True
         self.cursor = connection.cursor()

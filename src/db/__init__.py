@@ -201,6 +201,8 @@ def get_db_and_query_classes(config: SimpleNamespace) -> Tuple[DB, Query]:
         from src.db.snowflake import SnowflakeQuery as _Query, SnowflakeDB as _DB
     elif config.database_type == 'azuredwh':
         from src.db.azuredwh import AzureDwhQuery as _Query, AzureDwhDB as _DB
+    elif config.database_type == 'bigquery':
+        from src.db.bigquery import BigQueryQuery as _Query, BigQueryDB as _DB
     else:
         raise Exception(f"Unknown database type: {config.database_type}")
     return _DB, _Query

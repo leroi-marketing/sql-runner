@@ -29,7 +29,8 @@ setup(
         'snowflake': ['snowflake-connector-python==2.0.4'],
         'redshift': ['psycopg2-binary'],
         'postgres': ['psycopg2-binary'],
-        'azuredwh': ['pyodbc']
+        'azuredwh': ['pyodbc'],
+        'bigquery': ['google-cloud-bigquery==1.23.1']
     },
 
     packages=find_packages(),
