@@ -4,7 +4,7 @@ import sys
 from types import SimpleNamespace
 from textwrap import dedent
 
-from src.db import Query, DB
+from src.db import Query, DB, regex_dependency
 
 class SnowflakeQuery(Query):
     pass

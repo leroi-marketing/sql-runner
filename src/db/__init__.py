@@ -206,3 +206,26 @@ def get_db_and_query_classes(config: SimpleNamespace) -> Tuple[DB, Query]:
     else:
         raise Exception(f"Unknown database type: {config.database_type}")
     return _DB, _Query
+
+
+def get_db_object_regex(config: SimpleNamespace) -> str:
+    """Returns database specific regex to identify source objects in queries
+    """
+    # If you know of an easier to write method that's also easy to debug, and easy enough for anyone to understand,
+    # please change this
+    if config.database_type == 'postgres':
+        from src.db.postgres import regex_dependency as _regex_dep
+    elif config.database_type == 'redshift':
+        from src.db.redshift import regex_dependency as _regex_dep
+    elif config.database_type == 'snowflake':
+        from src.db.snowflake import regex_dependency as _regex_dep
+    elif config.database_type == 'azuredwh':
+        from src.db.azuredwh import regex_dependency as _regex_dep
+    elif config.database_type == 'bigquery':
+        from src.db.bigquery import regex_dependency as _regex_dep
+    else:
+        raise Exception(f"Unknown database type: {config.database_type}")
+    return _regex_dep
+
+# Match x.y.z where x. is optional, and each one of x, y or z can be surrounded by quotes of type ".
+regex_dependency = r'(?:from|join)\s*((?:(?P<q1>["]?)[a-z0-9_]*(?P=q1)\.)?(?P<q2>["]?)[a-z0-9_]*(?P=q2)\.(?P<q3>["]?)[a-z0-9_]*(?P=q3))(?:\s|;|,|$)'

@@ -2,7 +2,7 @@ import os
 import re
 
 import networkx as nx
-from src.db import get_db_and_query_classes, DB
+from src.db import get_db_and_query_classes, DB, get_db_object_regex
 from types import SimpleNamespace
 from typing import Set, List, Dict
 from functools import lru_cache
@@ -11,16 +11,13 @@ from functools import lru_cache
 class Dependencies:
     def __init__(self, config: SimpleNamespace):
         self.config = config
+        regex_db_object = get_db_object_regex(config)
 
         def get_query_sources(select_stmt: str) -> Set[str]:
             """ Get set of tables mentioned in the select statement
             """
-            regex_schema_table = r'(?:from|join)\s*([a-z0-9_]*\.[a-z0-9_]*)(?:\s|;|,|$)'
-            regex_db_schema_table = r'(?:from|join)\s*([a-z0-9_]*\.[a-z0-9_]*\.[a-z0-9_]*)(?:\s|;|,|$)'
-            schema_table = set(str(match) for match in re.findall(regex_schema_table, select_stmt.lower(), re.DOTALL))
-            db_schema_table = set(
-                str(match) for match in re.findall(regex_db_schema_table, select_stmt.lower(), re.DOTALL))
-            return schema_table | db_schema_table
+            sources = set(str(match) for match in re.findall(regex_db_object, select_stmt.lower(), re.DOTALL))
+            return sources
 
         self.dependencies: List[Dict[str, str]] = []
         for root, _, file_names in os.walk(config.sql_path):

@@ -15,6 +15,9 @@ from src.db import Query, DB
                  _)  (_              _)       (_       _) 
 """
 
+# Match x.y.z where x. is optional, and each one of x, y or z can be surrounded by quotes of type " or [].
+regex_dependency = r'(?:from|join)\s*((?:(?P<q1>[]]?)[a-z0-9_]*(?P=q1)\.)?(?P<q2>[]]?)[a-z0-9_]*(?P=q2)\.(?P<q3>[]]?)[a-z0-9_]*(?P=q3))(?:\s|;|,|$)'
+
 class BigQueryQuery(Query):
     def __init__(self, config: SimpleNamespace, schema_name: str, table_name: str, action: str):
         super().__init__(config, schema_name, table_name, action)
