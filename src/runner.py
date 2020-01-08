@@ -3,6 +3,12 @@ import json
 import os
 from types import SimpleNamespace
 
+
+def main():
+    args = parse_args()
+    run(args)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Parse arguments SQL runner.')
     parser.add_argument(
@@ -53,7 +59,10 @@ def parse_args():
     )
     args = parser.parse_args()
 
-def main(args):
+    return args
+
+
+def run(args):
     from src import deps, query_list, db
 
     with open(args.config) as f:
@@ -92,5 +101,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-    args = parse_args()
-    main(args)
+    main()
