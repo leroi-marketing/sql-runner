@@ -63,7 +63,7 @@ def parse_args():
 
 
 def run(args):
-    from src import deps, query_list, db
+    from sql_runner import deps, query_list, db
 
     with open(args.config) as f:
         config = SimpleNamespace(**json.load(f))

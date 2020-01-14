@@ -2,7 +2,7 @@ import os
 import re
 
 import networkx as nx
-from src.db import get_db_and_query_classes, DB, get_db_object_regex
+from sql_runner.db import get_db_and_query_classes, DB, get_source_entities
 from types import SimpleNamespace
 from typing import Set, List, Dict
 from functools import lru_cache
@@ -11,12 +11,11 @@ from functools import lru_cache
 class Dependencies:
     def __init__(self, config: SimpleNamespace):
         self.config = config
-        regex_db_object = get_db_object_regex(config)
 
         def get_query_sources(select_stmt: str) -> Set[str]:
             """ Get set of tables mentioned in the select statement
             """
-            sources = set(str(match) for match in re.findall(regex_db_object, select_stmt.lower(), re.DOTALL))
+            sources = set(get_source_entities(select_stmt.lower()))
             return sources
 
         self.dependencies: List[Dict[str, str]] = []
@@ -31,8 +30,12 @@ class Dependencies:
                                 dependent_schema = os.path.basename(os.path.normpath(root))
                                 dependent_table = file_name[:-4]
                                 for source in get_query_sources(select_stmt):
-                                    source_schema = source.split('.')[-2]
-                                    source_table = source.split('.')[-1]
+                                    parts = source.split('.')
+                                    if len(parts) < 2:
+                                        continue
+                                    print(file_name, source)
+                                    source_schema = parts[-2]
+                                    source_table = parts[-1]
                                     self.dependencies.append({
                                         'source_schema': source_schema,
                                         'source_table': source_table,

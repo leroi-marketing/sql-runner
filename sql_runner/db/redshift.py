@@ -1,6 +1,6 @@
 import re
 from textwrap import dedent
-from src.db.postgres import PostgresQuery, PostgresDB, regex_dependency
+from sql_runner.db.postgres import PostgresQuery, PostgresDB, regex_dependency
 
 
 class RedshiftQuery(PostgresqlQuery):

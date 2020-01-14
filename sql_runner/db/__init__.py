@@ -5,7 +5,8 @@ from types import SimpleNamespace, FunctionType
 from typing import List, Dict, Union, Tuple
 from functools import partial
 import csv, io
-from src import tests
+from sql_runner import tests
+import sqlparse
 
 
 class Query(object):
@@ -194,38 +195,50 @@ def get_db_and_query_classes(config: SimpleNamespace) -> Tuple[DB, Query]:
     # If you know of an easier to write method that's also easy to debug, and easy enough for anyone to understand,
     # please change this
     if config.database_type == 'postgres':
-        from src.db.postgres import PostgresQuery as _Query, PostgresDB as _DB
+        from sql_runner.db.postgres import PostgresQuery as _Query, PostgresDB as _DB
     elif config.database_type == 'redshift':
-        from src.db.redshift import RedshiftQuery as _Query, RedshiftDB as _DB
+        from sql_runner.db.redshift import RedshiftQuery as _Query, RedshiftDB as _DB
     elif config.database_type == 'snowflake':
-        from src.db.snowflake import SnowflakeQuery as _Query, SnowflakeDB as _DB
+        from sql_runner.db.snowflake import SnowflakeQuery as _Query, SnowflakeDB as _DB
     elif config.database_type == 'azuredwh':
-        from src.db.azuredwh import AzureDwhQuery as _Query, AzureDwhDB as _DB
+        from sql_runner.db.azuredwh import AzureDwhQuery as _Query, AzureDwhDB as _DB
     elif config.database_type == 'bigquery':
-        from src.db.bigquery import BigQueryQuery as _Query, BigQueryDB as _DB
+        from sql_runner.db.bigquery import BigQueryQuery as _Query, BigQueryDB as _DB
     else:
         raise Exception(f"Unknown database type: {config.database_type}")
     return _DB, _Query
 
 
-def get_db_object_regex(config: SimpleNamespace) -> str:
-    """Returns database specific regex to identify source objects in queries
-    """
-    # If you know of an easier to write method that's also easy to debug, and easy enough for anyone to understand,
-    # please change this
-    if config.database_type == 'postgres':
-        from src.db.postgres import regex_dependency as _regex_dep
-    elif config.database_type == 'redshift':
-        from src.db.redshift import regex_dependency as _regex_dep
-    elif config.database_type == 'snowflake':
-        from src.db.snowflake import regex_dependency as _regex_dep
-    elif config.database_type == 'azuredwh':
-        from src.db.azuredwh import regex_dependency as _regex_dep
-    elif config.database_type == 'bigquery':
-        from src.db.bigquery import regex_dependency as _regex_dep
-    else:
-        raise Exception(f"Unknown database type: {config.database_type}")
-    return _regex_dep
+def get_source_entities(query):
+    res = sqlparse.parse(query)
+    for stmt in res:
+        stmt = res[0]
+        tokens = list(t for t in stmt.flatten() if not t.is_whitespace)
+        from_or_join = re.compile(r'(from|join)', re.IGNORECASE)
+        expect_name = False
+        was_name = False
 
-# Match x.y.z where x. is optional, and each one of x, y or z can be surrounded by quotes of type ".
-regex_dependency = r'(?:from|join)\s*((?:(?P<q1>["]?)[a-z0-9_]*(?P=q1)\.)?(?P<q2>["]?)[a-z0-9_]*(?P=q2)\.(?P<q3>["]?)[a-z0-9_]*(?P=q3))(?:\s|;|,|$)'
+        names = []
+        for t in tokens:
+            rt = repr(t)
+            if rt.startswith("<Keyword") and from_or_join.search(t.value):
+                names.append('')
+                expect_name = True
+                was_name = False
+            elif was_name:
+                was_name = False
+                if rt.startswith("<Punctuation"):
+                    if t.value=='.':
+                        names[-1] += '.'
+                        expect_name = True
+                    elif t.value==',':
+                        names.append('')
+                        expect_name = True
+            elif expect_name:
+                if rt.startswith("<Punctuation") or rt.startswith("<DML"):
+                    expect_name = False
+                elif rt.startswith("<Name") or rt.startswith("<Symbol"):
+                    expect_name = False
+                    was_name = True
+                    names[-1] += t.value.strip('[]"`')
+        return names

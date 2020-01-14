@@ -18,7 +18,8 @@ setup(
         'networkx==2.2',
         'pydot==1.4.1',
         'graphviz==0.10.1',
-        'pythondialog'
+        'pythondialog',
+        'sqlparse'
     ],
 
     dependency_links=[
@@ -40,11 +41,11 @@ setup(
 
     entry_points={
         'console_scripts': [
-            'runner = src.runner:main',
+            'runner = sql_runner.runner:main',
             # legacy
-            'sqlrunner = src.runner:main',
+            'sqlrunner = sql_runner.runner:main',
             # Interactive
-            'run_sql = src.run_sql:main'
+            'run_sql = sql_runner.run_sql:main'
         ],
     }
 )

@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from typing import Union, Any, Dict, List
 from collections import defaultdict
 
-from src.db import DB, Query, get_db_and_query_classes
+from sql_runner.db import DB, Query, get_db_and_query_classes
 
 class QueryList(list):
 

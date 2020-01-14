@@ -6,10 +6,7 @@ from types import SimpleNamespace
 from textwrap import dedent
 from typing import List, Dict
 
-from src.db import Query, DB
-
-# Match x.y.z where x. is optional, and each one of x, y or z can be surrounded by quotes of type " or [].
-regex_dependency = r'(?:from|join)\s*((?:(?P<q1>[\[\]"]]?)[a-z0-9_]*(?P=q1)\.)?(?P<q2>[\[\]"]?)[a-z0-9_]*(?P=q2)\.(?P<q3>[\[\]"]?)[a-z0-9_]*(?P=q3))(?:\s|;|,|$)'
+from sql_runner.db import Query, DB
 
 class AzureDwhQuery(Query):
     @property
@@ -184,10 +181,10 @@ class AzureDwhDB(DB):
         """
         if table or view:
             if table:
-                src = 'tables'
+                sql_runner = 'tables'
             elif view:
-                src = 'views'
-            join = f"JOIN sys.{src} o ON o.schema_id = s.schema_id AND o.name='{child_name}'"
+                sql_runner = 'views'
+            join = f"JOIN sys.{sql_runner} o ON o.schema_id = s.schema_id AND o.name='{child_name}'"
         else:
             join = ''
         return f"EXISTS (SELECT 1 FROM sys.schemas s {join} WHERE s.name='{schema_name}')"
