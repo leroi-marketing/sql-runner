@@ -211,14 +211,13 @@ def get_db_and_query_classes(config: SimpleNamespace) -> Tuple[DB, Query]:
 
 def get_source_entities(query):
     res = sqlparse.parse(query)
+    names = []
     for stmt in res:
-        stmt = res[0]
         tokens = list(t for t in stmt.flatten() if not t.is_whitespace)
         from_or_join = re.compile(r'(from|join)', re.IGNORECASE)
         expect_name = False
         was_name = False
 
-        names = []
         for t in tokens:
             rt = repr(t)
             if rt.startswith("<Keyword") and from_or_join.search(t.value):
@@ -241,4 +240,4 @@ def get_source_entities(query):
                     expect_name = False
                     was_name = True
                     names[-1] += t.value.strip('[]"`')
-        return names
+    return names

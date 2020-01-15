@@ -29,11 +29,11 @@ class Dependencies:
                             if select_stmt != '':
                                 dependent_schema = os.path.basename(os.path.normpath(root))
                                 dependent_table = file_name[:-4]
-                                for source in get_query_sources(select_stmt):
+                                sources = get_query_sources(select_stmt)
+                                for source in sources:
                                     parts = source.split('.')
                                     if len(parts) < 2:
                                         continue
-                                    print(file_name, source)
                                     source_schema = parts[-2]
                                     source_table = parts[-1]
                                     self.dependencies.append({
