@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 (2020-01-15)
+**Might be a breaking change**
+- Rebrand to _DEPT SQL Runner_.  
+  LEROI is now part of DEPT
+- Add Google BigQuery support
+- Enable calling the runner with function arguments
+- Refactor dependency detection:
+  - Switch from regular expressions to query tokenizer and state-machine-based parsing
+  - Make the functionality overrideable from the DB-specific modules
+- Rename `src` to `sql_runner` to make it less generic in the directory structure when installed using `pip`
+
 ## 0.2.9 (2019-11-21)
 - Fix file decoding with explicit optional `encoding` option in config, that defaults to `utf-8`
 

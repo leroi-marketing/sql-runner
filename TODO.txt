@@ -1,9 +1,7 @@
 TODO: split auth and config to have config in git
-TODO: move config into src and complete custom config with default values
 TODO: move cleanup to QueryList class
 TODO: move test function to Query class
 TODO: move execute function to Query class
 TODO: solve if cases in runnder.py more elegantly
 TODO: remove unique_keys
-
-
+TODO: proper unit tests, code coverage. When this is done, we can bump the version to 1.0. Until then, it's always risky to deploy a new version somewhere
