@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from google.cloud import bigquery
 from google.api_core import exceptions
 from sql_runner.db import Query, DB
+from typing import List, Dict
 
 '''
   ▄████  ▒█████   ▒█████    ▄████  ██▓    ▓█████     ▄▄▄▄    ██▓  ▄████   █████   █    ██ ▓█████  ██▀███ ▓██   ██▓
@@ -183,3 +184,6 @@ class BigQueryDB(DB):
 
     def fetchall(self):
         return list(self.result)
+
+    def save(self, monitor_schema: str, dependencies: List[Dict]):
+        print("Saving dependencies is not supported on BigQuery")
