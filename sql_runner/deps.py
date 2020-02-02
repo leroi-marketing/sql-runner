@@ -2,7 +2,8 @@ import os
 import re
 
 import networkx as nx
-from sql_runner.db import get_db_and_query_classes, DB, get_source_entities
+from sql_runner.db import get_db_and_query_classes, DB
+from sql_runner import parsing
 from types import SimpleNamespace
 from typing import Set, List, Dict
 from functools import lru_cache
@@ -11,12 +12,6 @@ from functools import lru_cache
 class Dependencies:
     def __init__(self, config: SimpleNamespace):
         self.config = config
-
-        def get_query_sources(select_stmt: str) -> Set[str]:
-            """ Get set of tables mentioned in the select statement
-            """
-            sources = set(get_source_entities(select_stmt.lower()))
-            return sources
 
         self.dependencies: List[Dict[str, str]] = []
         for root, _, file_names in os.walk(config.sql_path):
@@ -29,13 +24,16 @@ class Dependencies:
                             if select_stmt != '':
                                 dependent_schema = os.path.basename(os.path.normpath(root))
                                 dependent_table = file_name[:-4]
-                                sources = get_query_sources(select_stmt)
-                                for source in sources:
-                                    parts = source.split('.')
-                                    if len(parts) < 2:
-                                        continue
-                                    source_schema = parts[-2]
-                                    source_table = parts[-1]
+                                # deduplicate sources
+                                sources = set()
+                                for query in parsing.Query.get_queries(select_stmt):
+                                    for source in query.sources:
+                                        # Ignore sources without a specified schema
+                                        if source.schema:
+                                            source_schema = source.schema.lower()
+                                            source_table = source.relation.lower()
+                                            sources.add((source_schema, source_table))
+                                for source_schema, source_table in sources:
                                     self.dependencies.append({
                                         'source_schema': source_schema,
                                         'source_table': source_table,

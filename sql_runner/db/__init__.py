@@ -207,37 +207,3 @@ def get_db_and_query_classes(config: SimpleNamespace) -> Tuple[DB, Query]:
     else:
         raise Exception(f"Unknown database type: {config.database_type}")
     return _DB, _Query
-
-
-def get_source_entities(query):
-    res = sqlparse.parse(query)
-    names = []
-    for stmt in res:
-        tokens = list(t for t in stmt.flatten() if not t.is_whitespace)
-        from_or_join = re.compile(r'(from|join)', re.IGNORECASE)
-        expect_name = False
-        was_name = False
-
-        for t in tokens:
-            rt = repr(t)
-            if rt.startswith("<Keyword") and from_or_join.search(t.value):
-                names.append('')
-                expect_name = True
-                was_name = False
-            elif was_name:
-                was_name = False
-                if rt.startswith("<Punctuation"):
-                    if t.value=='.':
-                        names[-1] += '.'
-                        expect_name = True
-                    elif t.value==',':
-                        names.append('')
-                        expect_name = True
-            elif expect_name:
-                if rt.startswith("<Punctuation") or rt.startswith("<DML"):
-                    expect_name = False
-                elif rt.startswith("<Name") or rt.startswith("<Symbol"):
-                    expect_name = False
-                    was_name = True
-                    names[-1] += t.value.strip('[]"`')
-    return names
