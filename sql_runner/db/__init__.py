@@ -2,10 +2,10 @@ import os
 import re
 from textwrap import dedent
 from types import SimpleNamespace, FunctionType
-from typing import List, Dict, Union, Tuple
+from typing import List, Dict, Union, Tuple, Iterator
 from functools import partial
 import csv, io
-from sql_runner import tests
+from sql_runner import tests, parsing
 import sqlparse
 
 
@@ -17,8 +17,11 @@ class Query(object):
     def __init__(self, config: SimpleNamespace, schema_name: str, table_name: str, action: str):
         self.config: SimpleNamespace = config
         self.schema_name: str = schema_name.strip()
+        # zz_ when running --test
         self.schema_prefix: str = ''
+        # _mat when building "materialized" views
         self.schema_suffix = Query.default_schema_suffix
+
         self.table_name: str = table_name.strip()
         self.action: str = action.strip()
         self.sql_path: str = config.sql_path
@@ -30,6 +33,8 @@ class Query(object):
             raise ValueError(f'file {self.path} does not exist')
         with open(self.path, 'r', encoding=getattr(self.config, 'encoding', 'utf-8')) as f:
             self.query: str = f.read()
+
+        self.managed_statements: Iterator[parsing.Query] = parsing.Query.get_queries(self.query)
 
     def __repr__(self):
         return f'{self.schema_prefix}{self.schema_name}.{self.table_name} > {self.action}'
@@ -57,28 +62,18 @@ class Query(object):
         return f'{self.schema_prefix}{self.schema_name}.{self.table_name}'
 
     @property
-    def table_dependencies(self) -> List[str]:
-        """ List of tables mentioned in the SQL query
-        """
-        #TODO: This can be done more reliably with sqlparse
-        return [str(match) for match in re.findall(r'(?:FROM|JOIN)\s*([a-zA-Z0-9_]*\.[a-zA-Z0-9_]*)(?:\s|;)',
-                                                   self.query, re.DOTALL)]
-
-    @property
     def select_stmt(self) -> Union[str, None]:
-        """ Parses out something that looks like a `SELECT` statement from the query
+        """ Query that has DML, stripped of DDL
         """
-        # Anything that starts with `SELECT` or `WITH`, and ends with a semicolon or end of file
-        match = re.search(r'((SELECT|WITH)(\'.*\'|[^;])*)(;|$)', self.query, re.DOTALL)
-        if match is not None:
-            select_stmt = match.group(1).strip()
-            # Rudimentary validation of parentheses + a simple attempt to fix a very specific instance of bad SQL code
-            if select_stmt[-1] == ')' and select_stmt.count(')') > select_stmt.count('('):
-                select_stmt = select_stmt[:-1]
-        # No SQL Statement found, return None
-        else:
-            select_stmt = None
-        return select_stmt
+        for stmt in self.managed_statements:
+            if stmt.has_dml:
+                if stmt.has_ddl:
+                    dml = stmt.without_ddl
+                    break
+                dml = stmt
+                break
+        # TODO: Manipulate DML if necessary
+        return str(dml)
 
     @property
     def unique_keys(self) -> List[str]:

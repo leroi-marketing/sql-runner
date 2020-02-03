@@ -20,6 +20,14 @@ class Query():
         re.compile(r'(?<![\.n])(?:n\.){,2}n(?![\.n])')
     )
 
+    """ Pattern for matching the entire DDL part of a CREATE SOMETHING <name> AS ...
+    """
+    ddl_pattern = re.compile(r'^([\s-]*d.+?a[\s-]*)(?=[cs])')
+
+    """ Pattern for recognizing whether this query contains any data manipulation language (WITH... SELECT...)
+    """
+    dml_pattern = re.compile(r'[cs]')
+
     def __init__(self, tokens: List[sqlparse.sql.Token],
                  start_quotes: str='"', end_quotes: str='"'):
         self.tokens: List[sqlparse.sql.Token] = tokens
@@ -80,26 +88,13 @@ class Query():
 
     @property
     @lru_cache(maxsize=1)
-    def ddl_pattern(self):
-        """ Pattern for matching the entire DDL part of a CREATE SOMETHING <name> AS ...
-        """
-        return re.compile(r'^([\s-]*d.+?a[\s-]*)(?=[cs])')
-
-    @property
-    @lru_cache(maxsize=1)
-    def dml_pattern(self):
-        """ Pattern for recognizing whether this query contains any data manipulation language (WITH... SELECT...)
-        """
-        return re.compile(r'[cs]')
-
-    @property
-    @lru_cache(maxsize=1)
     def has_dml(self) -> bool:
         """ Does this query contain any DML?
         """
-        return self.dml_pattern.search(self.__tokens_as_str) is not None
+        return Query.dml_pattern.search(self.__tokens_as_str) is not None
 
     @property
+    @lru_cache(maxsize=1)
     def sources(self) -> Iterator["Source"]:
         """ Returns all the sources for a DML query
         """
@@ -111,10 +106,12 @@ class Query():
                 local_span = ml.span()
                 yield Source(self, span[0] + local_span[0] + offset, span[0] + local_span[1] + offset)
 
+    @property
+    @lru_cache(maxsize=1)
     def without_ddl(self) -> "Query":
         """ Strips the DDL header of the query, for queries like CREATE TABLE ... AS SELECT
         """
-        pattern = self.ddl_pattern
+        pattern = Query.ddl_pattern
         matches = []
         for m in pattern.finditer(self.__tokens_as_str):
             span = m.span()
