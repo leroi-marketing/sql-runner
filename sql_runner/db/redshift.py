@@ -38,8 +38,7 @@ class RedshiftQuery(PostgresqlQuery):
         """ Statement that creates a table out of `select_stmt`
         """
         return dedent(f"""
-        CREATE SCHEMA IF NOT EXISTS {self.schema_name}{self.schema_suffix};
-        DROP TABLE IF EXISTS {self.schema_name}{self.schema_suffix}.{self.table_name} CASCADE;
+        CREATE SCHEMA IF NOT EXISTS {self.schema};
         DROP TABLE IF EXISTS {self.name} CASCADE;
         CREATE TABLE {self.name} {self.distkey_stmt} {self.sortkey_stmt}
         AS
@@ -52,16 +51,16 @@ class RedshiftQuery(PostgresqlQuery):
         """ Statement that creates a "materialized" view, or equivalent, out of a `select_stmt`
         """
         return dedent(f"""
-        CREATE SCHEMA IF NOT EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix};
-        DROP TABLE IF EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name} CASCADE;
-        CREATE TABLE {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name} {self.distkey_stmt} {self.sortkey_stmt}
+        CREATE SCHEMA IF NOT EXISTS {self.schema_mat};
+        DROP TABLE IF EXISTS {self.name_mat} CASCADE;
+        CREATE TABLE {self.name_mat} {self.distkey_stmt} {self.sortkey_stmt}
         AS
         {self.select_stmt};
-        ANALYZE {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name};
+        ANALYZE {self.name_mat};
         DROP VIEW IF EXISTS {self.name} CASCADE;
         CREATE VIEW {self.name}
         AS
-        SELECT * FROM {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name};
+        SELECT * FROM {self.name_mat};
         """)
 
 

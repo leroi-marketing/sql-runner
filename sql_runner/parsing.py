@@ -225,10 +225,8 @@ class PartialNameTokenWrapper():
         partial_values = reversed(val.split('.'))
         partial_name_token_wrappers = []
         for partial_value in partial_values:
-            # TODO: This is buggy. Won't see proper tokens
             partial_name_token_wrapper = PartialNameTokenWrapper(
                 token_wrapper,
-                # TODO: This is wrong
                 end - len(partial_value),
                 end,
                 tuple(partial_name_token_wrappers)

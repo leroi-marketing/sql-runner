@@ -24,15 +24,10 @@ from typing import List, Dict
 
 class BigQueryQuery(Query):
     def __init__(self, config: SimpleNamespace, schema_name: str, table_name: str, action: str):
+        # BigQuery requires explicit database
+        config.explicit_database = True
         super().__init__(config, schema_name, table_name, action)
         self.database = config.auth["database"]
-
-
-    @property
-    def name(self) -> str:
-        """ Full Table name
-        """
-        return f'{self.database}.{self.schema_prefix}{self.schema_name}.{self.table_name}'
 
     @property
     def partition_by_stmt(self) -> str:
@@ -59,7 +54,7 @@ class BigQueryQuery(Query):
         """ Statement that creates a table out of `select_stmt`
         """
         return dedent(f"""
-        CREATE SCHEMA IF NOT EXISTS `{self.database}.{self.schema_name}{self.schema_suffix}`;
+        CREATE SCHEMA IF NOT EXISTS `{self.schema}`;
         CREATE OR REPLACE TABLE `{self.name}` {self.partition_by_stmt} {self.options_stmt}
         AS
         {self.select_stmt};
@@ -70,7 +65,7 @@ class BigQueryQuery(Query):
         """ Statement that creates a view out of `select_stmt`
         """
         return dedent(f"""
-        CREATE SCHEMA IF NOT EXISTS `{self.database}.{self.schema_name}{self.schema_suffix}`;
+        CREATE SCHEMA IF NOT EXISTS `{self.schema}`;
         CREATE OR REPLACE VIEW `{self.name}`
         AS
         {self.select_stmt};
@@ -81,14 +76,14 @@ class BigQueryQuery(Query):
         """ Statement that creates a "materialized" view, or equivalent, out of a `select_stmt`
         """
         return dedent(f"""
-        CREATE SCHEMA IF NOT EXISTS `{self.database}.{self.schema_prefix}{self.schema_name}{self.schema_suffix}`;
-        CREATE OR REPLACE TABLE `{self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name}` {self.partition_by_stmt} {self.options_stmt}
+        CREATE SCHEMA IF NOT EXISTS `{self.schema_mat}`;
+        CREATE OR REPLACE TABLE `{self.name_mat}` {self.partition_by_stmt} {self.options_stmt}
         AS
         {self.select_stmt};
         DROP VIEW IF EXISTS `{self.name}`;
         CREATE VIEW `{self.name}`
         AS
-        SELECT * FROM `{self.database}.{self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name}`;
+        SELECT * FROM `{self.name_mat}`;
         """)
 
 

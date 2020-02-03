@@ -23,7 +23,7 @@ class AzureDwhQuery(Query):
     def object_exists_stmt(self, schema_name: str, table: bool = False, view: bool = False):
         """ Returns statement that, when executed, returns TRUE when the current object (of specified type) exists
         """
-        return AzureDwhDB.object_exists_stmt(schema_name, self.table_name, table=table, view=view)
+        return AzureDwhDB.object_exists_stmt(schema_name, self.name_components.relation, table=table, view=view)
 
     def schema_exists_stmt(self, schema_name: str) -> str:
         """ Returns statement that, when executed, returns TRUE when the schema exists
@@ -44,14 +44,13 @@ class AzureDwhQuery(Query):
     def create_table_stmt(self) -> str:
         """ Statement that creates a table out of `select_stmt`
         """
-        schema_name = f"{self.schema_name}"
         # https://docs.microsoft.com/en-us/sql/t-sql/statements/create-table-as-select-azure-sql-data-warehouse?view=azure-sqldw-latest
         return dedent(f"""
-        IF NOT {self.schema_exists_stmt(schema_name)}
-            EXEC('CREATE SCHEMA {schema_name}');
-        IF {self.table_exists_stmt(schema_name)}
+        IF NOT {self.schema_exists_stmt(self.schema)}
+            EXEC('CREATE SCHEMA {self.schema}');
+        IF {self.table_exists_stmt(self.schema)}
             DROP TABLE {self.name};
-        IF {self.view_exists_stmt(schema_name)}
+        IF {self.view_exists_stmt(self.schema)}
             DROP VIEW {self.name};
         CREATE TABLE {self.name}
         WITH ( {self.distribution} )
@@ -63,15 +62,14 @@ class AzureDwhQuery(Query):
     def create_view_stmt(self) -> str:
         """ Statement that creates a view out of `select_stmt`
         """
-        schema_name = f"{self.schema_prefix}{self.schema_name}"
         return dedent(f"""
-        IF NOT {self.schema_exists_stmt(schema_name)}
-            EXEC('CREATE SCHEMA {schema_name}');
-        IF {self.view_exists_stmt(schema_name)}
-            DROP VIEW {schema_name}.{self.table_name};
-        IF {self.table_exists_stmt(schema_name)}
-            DROP TABLE {schema_name}.{self.table_name};
-        CREATE VIEW {schema_name}.{self.table_name}
+        IF NOT {self.schema_exists_stmt(self.schema)}
+            EXEC('CREATE SCHEMA {self.schema}');
+        IF {self.view_exists_stmt(self.schema)}
+            DROP VIEW {self.name};
+        IF {self.table_exists_stmt(self.schema)}
+            DROP TABLE {self.name};
+        CREATE VIEW {self.name}
         AS
         {self.select_stmt};
         """)
@@ -84,31 +82,31 @@ class AzureDwhQuery(Query):
         view_schema=f"{self.schema_prefix}{self.schema_name}"
 
         return dedent(f"""
-        IF NOT {self.schema_exists_stmt(table_schema)}
-            EXEC('CREATE SCHEMA {table_schema}');
+        IF NOT {self.schema_exists_stmt(self.schema_mat)}
+            EXEC('CREATE SCHEMA {self.schema_mat}');
 
-        IF {self.table_exists_stmt(table_schema)}
-            DROP TABLE {table_schema}.{self.table_name};
+        IF {self.table_exists_stmt(self.schema_mat)}
+            DROP TABLE {self.name_mat};
 
-        IF {self.view_exists_stmt(view_schema)}
-            DROP VIEW {view_schema}.{self.table_name};
+        IF {self.view_exists_stmt(self.schema)}
+            DROP VIEW {self.name};
 
         IF {self.table_exists_stmt(view_schema)}
-            DROP TABLE {view_schema}.{self.table_name};
+            DROP TABLE {self.name};
 
-        CREATE TABLE {table_schema}.{self.table_name}
+        CREATE TABLE {self.name_mat}
         WITH (
             {self.distribution}
         )
         AS
         {self.select_stmt};
 
-        IF {self.view_exists_stmt(view_schema)}
+        IF {self.view_exists_stmt(self.schema)}
             DROP VIEW {self.name};
 
         CREATE VIEW {self.name}
         AS
-        SELECT * FROM {table_schema}.{self.table_name};
+        SELECT * FROM {self.name_mat};
         """)
 
 class AzureDwhDB(DB):

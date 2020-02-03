@@ -3,7 +3,7 @@ import re
 from textwrap import dedent
 from types import SimpleNamespace, FunctionType
 from typing import List, Dict, Union, Tuple, Iterator
-from functools import partial
+from functools import partial, lru_cache
 import csv, io
 from sql_runner import tests, parsing
 import sqlparse
@@ -55,11 +55,100 @@ class Query(object):
             return partial(check_fun, *args)
         return None
 
+    def preprocess_names(self, name_components: Union[parsing.Source, SimpleNamespace]):
+        """ Modifies name components in-place, in accordance with "staging" configuration
+        """
+        if getattr(self.config, "explicit_database", False):
+            name_components.database = self.config.auth["database"]
+
+        # Process Staging definition. What to add, or replace, and to which component of the name
+        if hasattr(self.config, "staging"):
+            staging_config = self.config.staging
+            except_rules = getattr(staging_config, "except", {})
+            # What not to override
+            except_matches = False
+            if except_rules:
+                # Check every exception from the rule, ex. "schema": "^x_"
+                for except_component, regex in except_rules.items():
+                    if re.search(regex, getattr(name_components, except_component, ""), re.IGNORECASE):
+                        except_matches = True
+                        break
+
+            if not except_matches:
+                override = staging_config["override"]
+                for override_component, override_directives in staging_config["override"].items():
+                    existing_value = getattr(name_components, override_component, "")
+                    for directive, value in override_directives.items():
+                        if directive == 'suffix':
+                            setattr(name_components, override_component, existing_value + value)
+                        elif directive == 'prefix':
+                            setattr(name_components, override_component, value + existing_value)
+                        elif directive == 'regex':
+                            new_value = re.sub(value["pattern"], value["replace"], existing_value)
+                            setattr(name_components, override_component, new_value)
+
+    @property
+    @lru_cache(maxsize=1)
+    def name_components(self) -> SimpleNamespace:
+        """ Name components for an element
+        """
+        components = SimpleNamespace(
+            database=None,
+            schema=f"{self.schema_prefix}{self.schema_name}",
+            relation=self.table_name
+        )
+        self.preprocess_names(components)
+        return components
+
     @property
     def name(self) -> str:
         """ Full Table name
         """
-        return f'{self.schema_prefix}{self.schema_name}.{self.table_name}'
+        components = self.name_components
+        # Gather non-empty components
+        existing_components = (c for c in (
+                components.database,
+                components.schema,
+                components.relation
+            ) if c)
+        return '.'.join(existing_components)
+
+    @property
+    def name_mat(self) -> str:
+        """ Full Table name for materialized view back-end
+        """
+        components = self.name_components
+        # Gather non-empty components
+        existing_components = (c for c in (
+                components.database,
+                components.schema + self.schema_suffix,
+                components.relation
+            ) if c)
+        return '.'.join(existing_components)
+
+    @property
+    def schema(self) -> str:
+        """ Full Schema name
+        """
+        components = self.name_components
+        # Gather non-empty components
+        existing_components = (c for c in (
+                components.database,
+                components.schema
+            ) if c)
+        return '.'.join(existing_components)
+
+    @property
+    def schema_mat(self) -> str:
+        """ Full Schema name for materialized view back-end
+        """
+        components = self.name_components
+        # Gather non-empty components
+        existing_components = (c for c in (
+                components.database,
+                components.schema + self.schema_suffix
+            ) if c)
+        return '.'.join(existing_components)
 
     @property
     def select_stmt(self) -> Union[str, None]:
@@ -72,7 +161,8 @@ class Query(object):
                     break
                 dml = stmt
                 break
-        # TODO: Manipulate DML if necessary
+        for source in dml.sources:
+            self.preprocess_names(source)
         return str(dml)
 
     @property
@@ -92,7 +182,7 @@ class Query(object):
         """ Statement that creates a view out of `select_stmt`
         """
         return dedent(f"""
-        CREATE SCHEMA IF NOT EXISTS {self.schema_name}{self.schema_suffix};
+        CREATE SCHEMA IF NOT EXISTS {self.schema};
         DROP VIEW IF EXISTS {self.name} CASCADE;
         CREATE VIEW {self.name}
         AS
@@ -104,6 +194,7 @@ class Query(object):
         """ Statement that creates a table out of `select_stmt`
         """
         return dedent(f"""
+        CREATE SCHEMA IF NOT EXISTS {self.schema};
         DROP TABLE IF EXISTS {self.name} CASCADE;
         CREATE TABLE {self.name}
         AS
@@ -115,15 +206,15 @@ class Query(object):
         """ Statement that creates a "materialized" view, or equivalent, out of a `select_stmt`
         """
         return dedent(f"""
-        CREATE SCHEMA IF NOT EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix};
-        DROP TABLE IF EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name} CASCADE;
-        CREATE TABLE {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name}
+        CREATE SCHEMA IF NOT EXISTS {self.schema_mat};
+        DROP TABLE IF EXISTS {self.name_mat} CASCADE;
+        CREATE TABLE {self.name_mat}
         AS
         {self.select_stmt};
         DROP VIEW IF EXISTS {self.name} CASCADE;
         CREATE VIEW {self.name}
         AS
-        SELECT * FROM {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name};
+        SELECT * FROM {self.name_mat};
         """)
 
     @property
