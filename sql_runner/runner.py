@@ -32,9 +32,10 @@ def parse_args():
         help='Test execution of statements based on the provided list of CSV command files',
         nargs='*'
     )
-    parser.add_argument(
+    command_group.add_argument(
         '--staging',
-        help='Executes commands as specified, but in staging schema',
+        metavar='csv_file',
+        help='Execute statements based on the provided list of CSV command files, in staging schemata',
         nargs='*'
     )
     command_group.add_argument(
@@ -57,22 +58,24 @@ def parse_args():
         nargs='?',
         default=False
     )
+
+    parser.add_argument(
+        '--cold-run',
+        help="Doesn't do any changes to the database. Just outputs the commands it would have run.",
+        default=False,
+        action="store_true"
+    )
     args = parser.parse_args()
 
     return args
 
 
 def run(args):
-    from sql_runner import deps, query_list, db
+    from sql_runner import deps, query_list, db, ExecutionType
 
     with open(args.config) as f:
         config = SimpleNamespace(**json.load(f))
         os.environ["PATH"] += os.pathsep + config.graphviz_path
-
-    if hasattr(config, 'test_schema_prefix'):
-        schema_prefix = config.test_schema_prefix
-    else:
-        schema_prefix = db.Query.default_schema_prefix
 
     if args.database:
         config.auth['database'] = args.database
@@ -80,22 +83,27 @@ def run(args):
 
     dependencies = deps.Dependencies(config)
 
+    execution_type: ExecutionType = ExecutionType.none
+    execution_list: list = []
     if args.execute:
-        query_list.QueryList.from_csv_files(config, args.execute, dependencies.dependencies).execute()
-        dependencies.clean_schemas(schema_prefix)
-
-    elif args.test:
-        query_list.QueryList.from_csv_files(config, args.test, dependencies.dependencies).test()
-        dependencies.clean_schemas(schema_prefix)
-
+        execution_type = ExecutionType.execute
+        execution_list = args.execute
     elif args.staging:
-        query_list.QueryList.from_csv_files(config, args.staging, dependencies.dependencies).test(True)
+        execution_type = ExecutionType.staging
+        execution_list = args.staging
+    elif args.test:
+        execution_type = ExecutionType.test
+        execution_list = args.test
 
-    elif args.deps:
+    if execution_type != ExecutionType.none:
+        qlist = query_list.QueryList.from_csv_files(config, execution_list, args.cold_run, dependencies.dependencies,
+                                                    execution_type)
+        qlist.run()
+
+    if args.deps:
         schema = config.deps_schema
         dependencies.save(schema)
         dependencies.viz()
-
     elif args.clean:
         dependencies.clean_schemas(args.clean)
 

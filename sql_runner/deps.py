@@ -51,7 +51,7 @@ class Dependencies:
     @lru_cache(maxsize=1)
     def db(self) -> DB:
         dbclass, _ = get_db_and_query_classes(self.config)
-        return dbclass(self.config)
+        return dbclass(self.config, cold_run=False)
 
     @property
     @lru_cache(maxsize=1)

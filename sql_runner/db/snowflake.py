@@ -2,20 +2,25 @@ import snowflake.connector
 import traceback
 import sys
 from types import SimpleNamespace
+from typing import List
 from textwrap import dedent
 
-from sql_runner.db import Query, DB, regex_dependency
+from sql_runner.db import Query, DB, FakeCursor
+
 
 class SnowflakeQuery(Query):
     pass
 
 
 class SnowflakeDB(DB):
-    def __init__(self, config: SimpleNamespace):
-        connection = snowflake.connector.connect(**config.auth)
-        cursor = connection.cursor()
-        cursor.execute(f'USE DATABASE {config.auth["database"]}')
-        self.cursor = cursor
+    def __init__(self, config: SimpleNamespace, cold_run: bool):
+        super().__init__(config, cold_run)
+        if cold_run:
+            self.cursor = FakeCursor()
+        else:
+            connection = snowflake.connector.connect(**config.auth)
+            self.cursor = connection.cursor()
+        self.cursor.execute(f'USE DATABASE {config.auth["database"]}')
 
     def execute(self, stmt: str, query: SnowflakeQuery = None):
         """Execute statement using DB-specific connector
@@ -34,6 +39,12 @@ class SnowflakeDB(DB):
             msg += f"\n\n{stmt}\n\n{traceback.format_exc()}\n"
             sys.stderr.write(msg)
             exit(1)
+
+    def clean_specific_schemas(self, schemata: List[str]):
+        """ Drop a specific list of schemata
+        """
+        for schema in schemata:
+            self.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE;")
 
     def clean_schemas(self, prefix: str):
         """ Drop schemata that have a specific name prefix

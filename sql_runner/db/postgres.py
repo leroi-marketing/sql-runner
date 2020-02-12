@@ -2,8 +2,9 @@ import psycopg2
 import traceback
 import sys
 from types import SimpleNamespace
+from typing import List
 from textwrap import dedent
-from sql_runner.db import Query, DB
+from sql_runner.db import Query, DB, FakeCursor
 
 
 class PostgresQuery(Query):
@@ -11,10 +12,14 @@ class PostgresQuery(Query):
 
 
 class PostgresDB(DB):
-    def __init__(self, config: SimpleNamespace):
-        connection = psycopg2.connect(**config.auth, connect_timeout=3)
-        connection.autocommit = True
-        self.cursor = connection.cursor()
+    def __init__(self, config: SimpleNamespace, cold_run: bool):
+        super().__init__(config, cold_run)
+        if cold_run:
+            self.cursor = FakeCursor()
+        else:
+            connection = psycopg2.connect(**config.auth, connect_timeout=3)
+            connection.autocommit = True
+            self.cursor = connection.cursor()
 
     def execute(self, stmt: str, query: PostgresQuery = None):
         """Execute statement using DB-specific connector
@@ -33,6 +38,12 @@ class PostgresDB(DB):
             msg += f"\n\n{stmt}\n\n{traceback.format_exc()}\n"
             sys.stderr.write(msg)
             exit(1)
+
+    def clean_specific_schemas(self, schemata: List[str]):
+        """ Drop a specific list of schemata
+        """
+        for schema in schemata:
+            self.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE;")
 
     def clean_schemas(self, prefix: str):
         """ Drop schemata that have a specific name prefix

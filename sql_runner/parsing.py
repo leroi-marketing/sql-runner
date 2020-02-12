@@ -1,12 +1,14 @@
 import sqlparse
 import re
 from functools import lru_cache
-from typing import List, Iterator, Union, Callable
+from typing import List, Iterator, Iterable, Union, Tuple
+
 
 class IncompatibleSQLError(Exception):
     pass
 
-class Query():
+
+class Query:
     """ Handles a full tokenized query, with specifications about identifier quoting
     """
 
@@ -17,7 +19,7 @@ class Query():
         re.compile(r'(f[\s-]*)((?:(?:n\.){,2}n)(?:[\s-]*,[\s-]*(?:n\.){,2}n)*)'),
         # Pattern for finding individual items from comma-separated entities from the string matched by the
         # previous pattern
-        re.compile(r'(?<![\.n])(?:n\.){,2}n(?![\.n])')
+        re.compile(r'(?<![.n])(?:n\.){,2}n(?![.n])')
     )
 
     """ Pattern for matching the entire DDL part of a CREATE SOMETHING <name> AS ...
@@ -29,13 +31,13 @@ class Query():
     dml_pattern = re.compile(r'[cs]')
 
     def __init__(self, tokens: List[sqlparse.sql.Token],
-                 start_quotes: str='"', end_quotes: str='"'):
+                 start_quotes: str = '"', end_quotes: str = '"'):
         self.tokens: List[sqlparse.sql.Token] = tokens
         self.start_quotes: str = start_quotes
         self.end_quotes: str = end_quotes
 
     @staticmethod
-    def get_queries(statement: str, start_quotes: str='"', end_quotes: str='"') -> Iterator["Query"]:
+    def get_queries(statement: str, start_quotes: str = '"', end_quotes: str = '"') -> Iterator["Query"]:
         """ Gets the Query objects from a string SQL statement
         """
         stmts = sqlparse.parse(statement)
@@ -55,7 +57,7 @@ class Query():
             if token.is_whitespace:
                 chrtokens.append(' ')
             elif ttype in sqlparse.tokens.Punctuation:
-                chrtokens.append(token.value)
+                chrtokens.append(token.value[:1])
             elif ttype in sqlparse.tokens.Keyword:
                 if 'JOIN' in token_value or 'FROM' in token_value:
                     chrtokens.append('f')
@@ -73,7 +75,7 @@ class Query():
                     chrtokens.append('k')
             elif ttype in sqlparse.tokens.Name or ttype in sqlparse.tokens.Literal.String.Symbol:
                 # This is a placeholder for a "name", a source
-                # TODO: if not claling the flatten() method on the statement, we don't have to deal with individual
+                # TODO: if not calling the flatten() method on the statement, we don't have to deal with individual
                 # cases like Identifier, Name, whether it's all quoted or quoted individual pieces. All of it becomes
                 # known as Identifier. But without Flatten, the parsing would have to be a bit more complex,
                 # with recursion, references to pieces of the query, but it should work in the next iteration just fine
@@ -113,9 +115,9 @@ class Query():
         """
         pattern = Query.ddl_pattern
         matches = []
-        for m in pattern.finditer(self.__tokens_as_str):
-            span = m.span()
-            offset = len(m.group(1))
+        for match in pattern.finditer(self.__tokens_as_str):
+            span = match.span()
+            offset = len(match.group(1))
             matches.append((span[0], span[0] + offset))
         matches.sort(key=lambda m: m[0])
         tokens = []
@@ -146,7 +148,7 @@ class NameTokenWrapper(QueryPart):
     def __init__(self, query: Query, index: int):
         super().__init__(query, index, index + 1)
         self.token = query.tokens[index]
-        self.index = index
+        self.quote_index: Union[int, None]
         _, self.quote_index = self.clean_name(self.token.value)
 
     @property
@@ -161,7 +163,7 @@ class NameTokenWrapper(QueryPart):
         else:
             self.token.value = val
 
-    def clean_name(self, name: str) -> str:
+    def clean_name(self, name: str) -> Tuple[str, Union[int, None]]:
         """ Strips any kind of SQL quotes from around identifiers
         """
         start_quotes = self.query.start_quotes
@@ -173,12 +175,12 @@ class NameTokenWrapper(QueryPart):
         return name, None
 
 
-class PartialNameTokenWrapper():
+class PartialNameTokenWrapper:
     """ Used to represent a single identifier from a compound Name token, like which Google BigQuery uses.
     """
     def __init__(self, name_token_wrapper: NameTokenWrapper, start: int, end: int,
-                 right_neighbors: List["PartialNameTokenWrapper"]):
-        self.__name_token_wrapper = name_token_wrapper
+                 right_neighbors: Iterable["PartialNameTokenWrapper"]):
+        self.__name_token_wrapper: NameTokenWrapper = name_token_wrapper
         # Notify right neighbors of a length change, so they re-compute the start and end accordingly
         self.__right_neighbors = right_neighbors
         self.__start = start
@@ -186,7 +188,7 @@ class PartialNameTokenWrapper():
         self.__last_known_full_length = len(self.name_token_wrapper.value)
     
     @property
-    def name_token_wrapper(self):
+    def name_token_wrapper(self) -> NameTokenWrapper:
         """ The full token for the full name
         """
         # Make it read-only
@@ -199,7 +201,6 @@ class PartialNameTokenWrapper():
     @value.setter
     def value(self, val: str):
         old_wrapper_value = self.name_token_wrapper.value
-        new_end = self.__start + len(val)
         self.name_token_wrapper.value = old_wrapper_value[:self.__start] + val + old_wrapper_value[self.__end:]
         self.__end = self.__start + len(val)
         for neighbor in self.__right_neighbors:
@@ -238,6 +239,7 @@ class PartialNameTokenWrapper():
             partial_name_token_wrappers.append(partial_name_token_wrapper)
         return reversed(partial_name_token_wrappers)
 
+
 class Source(QueryPart):
     """ A compound identifier that represents a data source. Usually as a token list of <schema_name><dot><table_name>
     """
@@ -245,13 +247,20 @@ class Source(QueryPart):
         super().__init__(query, start, end)
         self.tokens = query.tokens[start:end]
         self.__individual_names = False
+        self.__relation: Union[PartialNameTokenWrapper, NameTokenWrapper] = None
+        self.__schema: Union[PartialNameTokenWrapper, NameTokenWrapper] = None
+        self.__database: Union[PartialNameTokenWrapper, NameTokenWrapper] = None
+        self.compute_source()
 
+    def compute_source(self):
+        """ Compute database, schema, relantion
+        """
         # Determine what type of tokens we have, and wrap them in handler classes
-        names = []
+        names: List[Union[PartialNameTokenWrapper, NameTokenWrapper]] = []
         index = 0
         for token in self.tokens:
             if token.ttype in sqlparse.tokens.Name or token.ttype in sqlparse.tokens.Literal.String.Symbol:
-                name_part = NameTokenWrapper(query, start + index)
+                name_part = NameTokenWrapper(self.query, self._start + index)
                 names.append(name_part)
             elif token.ttype in sqlparse.tokens.Punctuation and token.value == '.':
                 self.__individual_names = True
@@ -259,9 +268,9 @@ class Source(QueryPart):
         if not self.__individual_names:
             names = list(PartialNameTokenWrapper.get_from_token_wrapper(names[0]))
 
-        self.__relation: PartialNameTokenWrapper = names.pop()
-        self.__schema: PartialNameTokenWrapper = names.pop() if names else None
-        self.__database: PartialNameTokenWrapper = names.pop() if names else None
+        self.__relation = names.pop()
+        self.__schema = names.pop() if names else None
+        self.__database = names.pop() if names else None
 
     @property
     def relation(self) -> str:
@@ -291,7 +300,39 @@ class Source(QueryPart):
 
     @database.setter
     def database(self, value: str):
+        print('>>>>>>>>>>>>>>>>>>>>>>>')
+        print(self.query)
+        print('***')
+        print(self.__database.value, value)
+        print('***')
         if self.__database:
             self.__database.value = value
-        raise IncompatibleSQLError("Can't edit the database where none is present in original query. "
-                                   "Not yet supported.")
+        elif self.__schema:
+            # !!! EXPERIMENTAL. Right now this won't work flawlessly. It relies on inference of quotes from schema
+            # or relation, and doesn't escape those quotes. Just use identifiers that don't need quotes and you'll be
+            # fine
+            # Better yet, be explicit about the database in the queries, if it is overridden
+            if isinstance(self.__schema, PartialNameTokenWrapper):
+                schema: PartialNameTokenWrapper = self.__schema
+                full_name_wrapper: NameTokenWrapper = schema.name_token_wrapper
+                # Update full token to new value
+                full_name_wrapper.value = f"{value}.{full_name_wrapper.value}"
+                self.compute_source()
+            else:
+                schema: NameTokenWrapper = self.__schema
+                schema_index = schema.query.tokens.index(schema.token)
+                quoted_value = value
+                # Infer same quotes as for the schema or table
+                if schema.quote_index is not None or self.__relation.quote_index is not None:
+                    idx = schema.quote_index if schema.quote_index is not None else self.__relation.quote_index
+                    quoted_value = f"{self.query.start_quotes[idx]}{quoted_value}{self.query.end_quotes[idx]}"
+                # Create a new token that's of the same type as the schema and add it to the query
+                token = sqlparse.sql.Token(schema.token.ttype, quoted_value)
+                schema.query.tokens.insert(schema_index, token)
+                self._end += 1
+                # Set the database
+                self.__database = NameTokenWrapper(self.query, schema_index)
+        else:
+            raise IncompatibleSQLError("Can't edit the database where schema is not specified in original query.")
+        print(self.query)
+        print('<<<<<<<<<<<<<<<<<<<<<<<')
