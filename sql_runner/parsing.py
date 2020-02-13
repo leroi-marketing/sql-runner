@@ -45,7 +45,6 @@ class Query:
             yield Query(list(stmt.flatten()), start_quotes, end_quotes)
 
     @property
-    @lru_cache(maxsize=1)
     def __tokens_as_str(self) -> str:
         """ Converts the token list into a simplified string where each character is a token.
         This can then be parsed more reliably by regexp, and character position matches token position in the list.
@@ -100,13 +99,20 @@ class Query:
     def sources(self) -> Iterator["Source"]:
         """ Returns all the sources for a DML query
         """
+        # Make sure all sources are processed here before any source is returned. The reason is that they should
+        # be aware of each other, to handle changing of lengths
+        sources: List["Source"] = []
         pattern, local_pattern = tuple(Query.source_patterns)
         for m in pattern.finditer(self.__tokens_as_str):
             span = m.span()
             offset = len(m.group(1))
             for ml in local_pattern.finditer(m.group(2)):
                 local_span = ml.span()
-                yield Source(self, span[0] + local_span[0] + offset, span[0] + local_span[1] + offset)
+                source = Source(self, span[0] + local_span[0] + offset, span[0] + local_span[1] + offset)
+                if sources:
+                    sources[-1].right_neighbor = source
+                sources.append(source)
+        return sources
 
     @property
     @lru_cache(maxsize=1)
@@ -245,11 +251,11 @@ class Source(QueryPart):
     """
     def __init__(self, query: Query, start: int, end: int):
         super().__init__(query, start, end)
-        self.tokens = query.tokens[start:end]
         self.__individual_names = False
         self.__relation: Union[PartialNameTokenWrapper, NameTokenWrapper] = None
         self.__schema: Union[PartialNameTokenWrapper, NameTokenWrapper] = None
         self.__database: Union[PartialNameTokenWrapper, NameTokenWrapper] = None
+        self.right_neighbor: Union[None, "Source"] = None
         self.compute_source()
 
     def compute_source(self):
@@ -271,6 +277,28 @@ class Source(QueryPart):
         self.__relation = names.pop()
         self.__schema = names.pop() if names else None
         self.__database = names.pop() if names else None
+
+    @property
+    def tokens(self) -> List[sqlparse.sql.Token]:
+        return self.query.tokens[self._start:self._end]
+
+    def __str__(self) -> str:
+        return str(sqlparse.sql.TokenList(self.tokens))
+
+    def __repr__(self) -> str:
+        right_neighbor_mark = ' right+' if self.right_neighbor else ''
+        return f"<Source '{str(self)}' query[{self._start}:{self._end}]{right_neighbor_mark}>"
+
+    def move(self, offset):
+        """ Notifies that these tokens have moved because tokens were added or removed before these ones
+        """
+        if offset == 0:
+            return
+        self._start += offset
+        self._end += offset
+        self.compute_source()
+        if self.right_neighbor:
+            self.right_neighbor.move(offset)
 
     @property
     def relation(self) -> str:
@@ -323,8 +351,16 @@ class Source(QueryPart):
                     quoted_value = f"{self.query.start_quotes[idx]}{quoted_value}{self.query.end_quotes[idx]}"
                 # Create a new token that's of the same type as the schema and add it to the query
                 token = sqlparse.sql.Token(schema.token.ttype, quoted_value)
+                # Clone a dot, from the dot between schema and relation
+                schema_dot_token = schema.query.tokens[schema_index + 1]
+                new_dot = sqlparse.sql.Token(schema_dot_token.ttype, ".")
+                # Insert dot, then the new (database) token
+                schema.query.tokens.insert(schema_index, new_dot)
                 schema.query.tokens.insert(schema_index, token)
-                self._end += 1
+                # Increment the end position by 2 tokens (database and dot)
+                self._end += 2
+                if self.right_neighbor:
+                    self.right_neighbor.move(2)
                 # Set the database
                 self.__database = NameTokenWrapper(self.query, schema_index)
         else:
