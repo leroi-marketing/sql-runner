@@ -86,7 +86,7 @@ class Query(object):
             return
         # Only modify DB if explicit database is required and at least a schema is defined
         if getattr(self.config, "explicit_database", False) and name_components.schema is not None:
-            if name_components.database != self.config.auth["database"]:
+            if name_components.database is None:
                 name_components.database = self.config.auth["database"]
 
         # Process Staging definition. What to add, or replace, and to which component of the name

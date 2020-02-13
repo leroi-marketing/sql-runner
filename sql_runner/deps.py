@@ -12,11 +12,11 @@ from functools import lru_cache
 class Dependencies:
     def __init__(self, config: SimpleNamespace):
         self.config = config
-
+        print("Parsing queries to determine dependencies")
         self.dependencies: List[Dict[str, str]] = []
         for root, _, file_names in os.walk(config.sql_path):
-            if root.endswith(tuple(config.exclude_dependencies)):
-                return
+            if os.path.basename(root) in config.exclude_dependencies:
+                continue
 
             for file_name in file_names:
                 if file_name[-4:] != '.sql':
@@ -26,7 +26,7 @@ class Dependencies:
                 with open(file_path, 'r', encoding=getattr(self.config, 'encoding', 'utf-8')) as sql_file:
                     select_stmt = sql_file.read()
                     if select_stmt == '':
-                        return
+                        continue
 
                 dependent_schema = os.path.basename(os.path.normpath(root))
                 dependent_table = file_name[:-4]

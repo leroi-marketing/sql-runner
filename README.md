@@ -126,7 +126,10 @@ Two configuration files are needed to use the sqlrunner.
       "except": "not re.match('dwh', database.lower()) or re.search('^x', schema)"
     },
     "deps_schema": "{DEPENDENCY_SCHEMA_NAME}",
-    "exclude_dependencies": "('EXCLUDED_SCHEMA_1', 'EXCLUDED_SCHEMA_2' ..)",
+    "exclude_dependencies": [
+        "EXCLUDED_SCHEMA_1",
+        "EXCLUDED_SCHEMA_2"
+    ],
     "graphviz_path": "{GRAPHVIZ_PATH_FOR_WINDOWS}"
 }
 ```
