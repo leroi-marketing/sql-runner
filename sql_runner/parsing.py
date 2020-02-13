@@ -300,11 +300,6 @@ class Source(QueryPart):
 
     @database.setter
     def database(self, value: str):
-        print('>>>>>>>>>>>>>>>>>>>>>>>')
-        print(self.query)
-        print('***')
-        print(self.__database.value, value)
-        print('***')
         if self.__database:
             self.__database.value = value
         elif self.__schema:
@@ -334,5 +329,3 @@ class Source(QueryPart):
                 self.__database = NameTokenWrapper(self.query, schema_index)
         else:
             raise IncompatibleSQLError("Can't edit the database where schema is not specified in original query.")
-        print(self.query)
-        print('<<<<<<<<<<<<<<<<<<<<<<<')

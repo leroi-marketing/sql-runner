@@ -1,6 +1,6 @@
-## LEROI SQL runner
+## DEPT SQL runner
 
-The LEROI SQL runner has three basic functionalities
+The DEPT SQL runner has three basic functionalities
 
 * executing SQL code in a specific order
 ```
@@ -33,6 +33,7 @@ SQL-Runner has the following optional dependencies that have to be mentioned whe
 * `azuredwh` - for work with Azure SQL Data Warehouse
 * `snowflake` - for working with Snowflake DB
 * `redshift` - for working with AWS Redshift
+* `bigquery` - for working with Google BigQuery
 * `s3` - for enabling AWS S3 API access (for saving dependencies SVG graph)
 
 Additionally for Azure DWH, it's required to install the [Microsoft ODBC Driver](https://docs.microsoft.com/en-us/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server?view=sql-server-2017). For Ubuntu 18.04 this is sufficient:
@@ -77,20 +78,54 @@ Two configuration files are needed to use the sqlrunner.
 * A config.json file that specifies all the necessary configuration variables. The default path is `auth/config.json` relative to the directory that this is run from.
 ```
 {
-   "sql_path": "{PATH}",
-    "database_type": "{SNOWFLAKE} OR {REDSHIFT} OR {POSTGRES}",
+    "sql_path": "{PATH}",
+    "database_type": "[snowflake|redshift|postgres|bigquery|azuredwh]",
     "auth": {
-    "user": "{USERNAME}",
-    "password": "{PASSWORD}",
-    "account": "{SNOWFLAKE_ACCOUNT}",
-    "database": "{SNOWFLAKE_DATABASE}",
-    "dbname": "{POSTGRES_DATABASE} OR {REDSHIFT_DATABASE}",
-    "host": "{POSTGRES_HOSTNAME} OR {REDSHIFT_HOSTNAME}",
-    "port": "{POSTGRES_PORT} OR {REDSHIFT_PORT}"
-     
-   },
+        // For Azure Synapse Analytics only
+        "server": "url.of.azuredwh.server",
+        // for BigQuery only
+        "credentials_path": "/path/to/google-generated-credentials.json",
+
+        // for Snowflake only
+        "account": "{SNOWFLAKE_ACCOUNT}",
+
+        // Azure Synapse Analytics DB, or Snowflake DB, or BigQuery DB
+        "database": "{DATABASE}",
+
+        // Postgresql or Redshift
+        "dbname": "{POSTGRES_DATABASE} OR {REDSHIFT_DATABASE}",
+        "host": "{POSTGRES_HOSTNAME} OR {REDSHIFT_HOSTNAME}",
+        "port": "{POSTGRES_PORT} OR {REDSHIFT_PORT}"
+
+        // Snowflake, postgres, redshift
+        "user": "{USERNAME}",
+        // Azure Synapse Analytics
+        "username": "{USERNAME}",
+
+        // All except Google BigQuery
+        "password": "{PASSWORD}",
+    },
+    // configure staging environments as database suffix for all but the source data objects
+    "staging": {
+      "override": {
+        "database": {
+          "suffix": "_STAGING1"
+        }
+      },
+      // python3 code that exposes `re` - regular expressions module, `database`, `schema`, `relation` being referenced
+      "except": "not re.match('dwh', database.lower()) or re.search('^x', schema)"
+    },
+    // configure test schema creation locations as a schema prefix for all but the source data objects
+    "test": {
+      "override": {
+        "schema": {
+          "prefix": "zz_"
+        }
+      },
+      // python3 code that exposes `re` - regular expressions module, `database`, `schema`, `relation` being referenced
+      "except": "not re.match('dwh', database.lower()) or re.search('^x', schema)"
+    },
     "deps_schema": "{DEPENDENCY_SCHEMA_NAME}",
-    "test_schema_prefix" : "{PREFIX_}",
     "exclude_dependencies": "('EXCLUDED_SCHEMA_1', 'EXCLUDED_SCHEMA_2' ..)",
     "graphviz_path": "{GRAPHVIZ_PATH_FOR_WINDOWS}"
 }
@@ -110,7 +145,7 @@ Per schema one directory is expected. The name of the SQL files should correspon
  t: create table
  v: create view
  m: materialize view
- test: run assertions on query result
+ check: run assertions on query result
  ```
 
 ### Development
@@ -125,3 +160,9 @@ pip install -e .[azuredwh] # and other optional dependencies
 # Run local (non-build) version:
 python debug.py [arg1 arg2 ...]
 ```
+
+## Functional comments
+
+Queries can have functional comments on the top. These comments can either specify data distribution for Azure Synapse Analytics or RedShift, or can contain assertions for `check` queries.
+
+*This needs better documentation, but for now you can check the source code for the DB-specific Query classes in sql_runner/db.*
