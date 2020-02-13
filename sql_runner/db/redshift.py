@@ -1,9 +1,10 @@
 import re
 from textwrap import dedent
-from sql_runner.db.postgres import PostgresQuery, PostgresDB, regex_dependency
+from typing import Iterable
+from sql_runner.db.postgres import PostgresQuery, PostgresDB
 
 
-class RedshiftQuery(PostgresqlQuery):
+class RedshiftQuery(PostgresQuery):
     @property
     def distkey_stmt(self) -> str:
         """ Distribution key statement, parsed out of `DISTKEY (<list>)`.
@@ -34,34 +35,49 @@ class RedshiftQuery(PostgresqlQuery):
         return sortkey_stmt
 
     @property
-    def create_table_stmt(self) -> str:
+    def create_table_stmt(self) -> Iterable[str]:
         """ Statement that creates a table out of `select_stmt`
         """
         return dedent(f"""
-        CREATE SCHEMA IF NOT EXISTS {self.schema_name}{self.schema_suffix};
-        DROP TABLE IF EXISTS {self.schema_name}{self.schema_suffix}.{self.table_name} CASCADE;
-        DROP TABLE IF EXISTS {self.name} CASCADE;
+        CREATE SCHEMA IF NOT EXISTS {self.schema}
+        """,
+        f"""
+        DROP TABLE IF EXISTS {self.name} CASCADE
+        """,
+        f"""
         CREATE TABLE {self.name} {self.distkey_stmt} {self.sortkey_stmt}
         AS
-        {self.select_stmt};
-        ANALYZE {self.name};
+        {self.select_stmt}
+        """,
+        f"""
+        ANALYZE {self.name}
         """)
 
     @property
-    def materialize_view_stmt(self) -> str:
+    def materialize_view_stmt(self) -> Iterable[str]:
         """ Statement that creates a "materialized" view, or equivalent, out of a `select_stmt`
         """
         return dedent(f"""
-        CREATE SCHEMA IF NOT EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix};
-        DROP TABLE IF EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name} CASCADE;
-        CREATE TABLE {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name} {self.distkey_stmt} {self.sortkey_stmt}
+        CREATE SCHEMA IF NOT EXISTS {self.schema_mat}
+        """,
+        f"""
+        DROP TABLE IF EXISTS {self.name_mat} CASCADE
+        """,
+        f"""
+        CREATE TABLE {self.name_mat} {self.distkey_stmt} {self.sortkey_stmt}
         AS
-        {self.select_stmt};
-        ANALYZE {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name};
-        DROP VIEW IF EXISTS {self.name} CASCADE;
+        {self.select_stmt}
+        """,
+        f"""
+        ANALYZE {self.name_mat}
+        """,
+        f"""
+        DROP VIEW IF EXISTS {self.name} CASCADE
+        """,
+        f"""
         CREATE VIEW {self.name}
         AS
-        SELECT * FROM {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name};
+        SELECT * FROM {self.name_mat}
         """)
 
 

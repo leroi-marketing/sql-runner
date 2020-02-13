@@ -6,8 +6,9 @@ import sys
 from types import SimpleNamespace
 from google.cloud import bigquery
 from google.api_core import exceptions
-from sql_runner.db import Query, DB
-from typing import List, Dict
+from google.cloud.bigquery.job import QueryJob
+from sql_runner.db import Query, DB, FakeCursor
+from typing import List, Dict, Iterable
 
 '''
   ▄████  ▒█████   ▒█████    ▄████  ██▓    ▓█████     ▄▄▄▄    ██▓  ▄████   █████   █    ██ ▓█████  ██▀███ ▓██   ██▓
@@ -22,17 +23,22 @@ from typing import List, Dict
                                                           ░                                               ░ ░     
 '''
 
+
+class FakeClient:
+    def __init__(self):
+        self.fake_cursor = FakeCursor()
+
+    def query(self, statement):
+        self.fake_cursor.execute(statement)
+        return SimpleNamespace(result=lambda: iter([]))
+
+
 class BigQueryQuery(Query):
     def __init__(self, config: SimpleNamespace, schema_name: str, table_name: str, action: str):
+        # BigQuery requires explicit database
+        config.explicit_database = True
         super().__init__(config, schema_name, table_name, action)
         self.database = config.auth["database"]
-
-
-    @property
-    def name(self) -> str:
-        """ Full Table name
-        """
-        return f'{self.database}.{self.schema_prefix}{self.schema_name}.{self.table_name}'
 
     @property
     def partition_by_stmt(self) -> str:
@@ -55,51 +61,65 @@ class BigQueryQuery(Query):
             return ''
 
     @property
-    def create_table_stmt(self) -> str:
+    def create_table_stmt(self) -> Iterable[str]:
         """ Statement that creates a table out of `select_stmt`
         """
-        return dedent(f"""
-        CREATE SCHEMA IF NOT EXISTS `{self.database}.{self.schema_name}{self.schema_suffix}`;
+        return (f"""
+        CREATE SCHEMA IF NOT EXISTS `{self.schema}`
+        """,
+        f"""
         CREATE OR REPLACE TABLE `{self.name}` {self.partition_by_stmt} {self.options_stmt}
         AS
-        {self.select_stmt};
+        {self.select_stmt}
         """)
 
     @property
-    def create_view_stmt(self) -> str:
+    def create_view_stmt(self) -> Iterable[str]:
         """ Statement that creates a view out of `select_stmt`
         """
-        return dedent(f"""
-        CREATE SCHEMA IF NOT EXISTS `{self.database}.{self.schema_name}{self.schema_suffix}`;
+        return (f"""
+        CREATE SCHEMA IF NOT EXISTS `{self.schema}`
+        """,
+        f"""
         CREATE OR REPLACE VIEW `{self.name}`
         AS
-        {self.select_stmt};
+        {self.select_stmt}
         """)
 
     @property
-    def materialize_view_stmt(self) -> str:
+    def materialize_view_stmt(self) -> Iterable[str]:
         """ Statement that creates a "materialized" view, or equivalent, out of a `select_stmt`
         """
-        return dedent(f"""
-        CREATE SCHEMA IF NOT EXISTS `{self.database}.{self.schema_prefix}{self.schema_name}{self.schema_suffix}`;
-        CREATE OR REPLACE TABLE `{self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name}` {self.partition_by_stmt} {self.options_stmt}
+        return (f"""
+        CREATE SCHEMA IF NOT EXISTS `{self.schema_mat}`
+        """,
+        f"""
+        CREATE OR REPLACE TABLE `{self.name_mat}` {self.partition_by_stmt} {self.options_stmt}
         AS
-        {self.select_stmt};
-        DROP VIEW IF EXISTS `{self.name}`;
+        {self.select_stmt}
+        """,
+        f"""
+        DROP VIEW IF EXISTS `{self.name}`
+        """,
+        f"""
         CREATE VIEW `{self.name}`
         AS
-        SELECT * FROM `{self.database}.{self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name}`;
+        SELECT * FROM `{self.name_mat}`;
         """)
 
 
 class BigQueryDB(DB):
-    def __init__(self, config: SimpleNamespace):
+    def __init__(self, config: SimpleNamespace, cold_run: bool):
+        super().__init__(config, cold_run)
         if 'credentials_path' in config.auth:
             credentials_path = os.path.abspath(config.auth['credentials_path'])
             os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
 
         self.database = config.auth["database"]
-        self.client = bigquery.Client(project=self.database)
+        if cold_run:
+            self.client = FakeClient()
+        else:
+            self.client = bigquery.Client(project=self.database)
         self.result = None
 
     def create_schema(self, schema: str):
@@ -153,7 +173,7 @@ class BigQueryDB(DB):
         if stmt.strip().strip(';') == '':
             return
         try:
-            self.result: google.cloud.bigquery.job.QueryJob = self.client.query(stmt).result()
+            self.result: QueryJob = self.client.query(stmt).result()
         except Exception:
             msg = ""
             if query:
@@ -166,6 +186,12 @@ class BigQueryDB(DB):
             msg += f"\n\n{stmt}\n\n{traceback.format_exc()}\n"
             sys.stderr.write(msg)
             exit(1)
+
+    def clean_specific_schemas(self, schemata: List[str]):
+        """ Drop a specific list of schemata
+        """
+        for schema in schemata:
+            self.client.delete_dataset(schema)
 
     def clean_schemas(self, prefix: str):
         """ Drop schemata that have a specific name prefix

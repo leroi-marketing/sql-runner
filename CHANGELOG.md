@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 (2020-02-13)
+**Breaking change**
+- Queries are now being modified on-the-fly to facilitate full forking of data, either with chaining views (when running with `--test`) or to build data in a staging environment (when running with `--staging`)
+- DML statements from comments, as well as parsing semicolons from comments is no longer an issue. Comments from statements are being ignored unless they're functional
+- Configuration for `--test` and `--staging` has changed. Explicit `schema_prefix` is no longer used.
+- Queries now reveal modifiable dependencies, and this functionality can be further extended.
+- Cleanup is now happening only on newly created schemata.
+
 ## 0.3.0 (2020-01-15)
 **Might be a breaking change**
 - Rebrand to _DEPT SQL Runner_.  

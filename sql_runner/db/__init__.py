@@ -1,24 +1,42 @@
 import os
 import re
-from textwrap import dedent
 from types import SimpleNamespace, FunctionType
-from typing import List, Dict, Union, Tuple
-from functools import partial
-import csv, io
-from sql_runner import tests
-import sqlparse
+from typing import List, Dict, Union, Tuple, Iterator, Iterable, Callable, Any
+from functools import partial, lru_cache
+import csv
+import io
+
+from sql_runner import tests, parsing, ExecutionType
+
+
+class FakeCursor:
+    def execute(self, statement: str):
+        print("\n>>>>>>>>>> BEGIN STATEMENT >>>>>>>>>")
+        print(statement)
+        print(">>>>>>>>>>> END STATEMENT >>>>>>>>>>\n")
+
+    def fetchall(self):
+        return []
+
+    def fetchmany(self, *args, **kwargs):
+        return []
+
+    def fetchone(self):
+        return None
 
 
 class Query(object):
 
-    default_schema_prefix = 'zz_'
     default_schema_suffix = '_mat'
 
-    def __init__(self, config: SimpleNamespace, schema_name: str, table_name: str, action: str):
+    def __init__(self, config: SimpleNamespace, execution_type: ExecutionType, schema_name: str,
+                 table_name: str, action: str):
         self.config: SimpleNamespace = config
+        self.execution_type: ExecutionType = execution_type
         self.schema_name: str = schema_name.strip()
-        self.schema_prefix: str = ''
+        # _mat when building "materialized" views
         self.schema_suffix = Query.default_schema_suffix
+
         self.table_name: str = table_name.strip()
         self.action: str = action.strip()
         self.sql_path: str = config.sql_path
@@ -31,8 +49,18 @@ class Query(object):
         with open(self.path, 'r', encoding=getattr(self.config, 'encoding', 'utf-8')) as f:
             self.query: str = f.read()
 
+        self.__managed_statements: Iterator[parsing.Query] = parsing.Query.get_queries(self.query)
+
     def __repr__(self):
-        return f'{self.schema_prefix}{self.schema_name}.{self.table_name} > {self.action}'
+        return f'{self.name} > {self.action}'
+
+    def get_statement_generator(self, statement_type: str) -> Callable[[ExecutionType], Iterable[str]]:
+        return getattr(self, statement_type)
+
+    @property
+    @lru_cache(maxsize=1)
+    def managed_statements(self) -> List[parsing.Query]:
+        return list(self.__managed_statements)
 
     @property
     def assertion(self) -> FunctionType:
@@ -50,35 +78,115 @@ class Query(object):
             return partial(check_fun, *args)
         return None
 
+    def preprocess_names(self, name_components: Union[parsing.Source, SimpleNamespace]):
+        """ Modifies name components in-place, in accordance with "staging" or "test" configuration
+        """
+        # Only modify names that at least have a schema (not CTEs)
+        if name_components.schema is None:
+            return
+        # Only modify DB if explicit database is required and at least a schema is defined
+        if getattr(self.config, "explicit_database", False) and name_components.schema is not None:
+            if name_components.database is None:
+                name_components.database = self.config.auth["database"]
+
+        # Process Staging definition. What to add, or replace, and to which component of the name
+        if self.execution_type == ExecutionType.staging and hasattr(self.config, "staging") \
+                or self.execution_type == ExecutionType.test and hasattr(self.config, "test"):
+            if self.execution_type == ExecutionType.staging:
+                override_config: Dict[str, Dict] = self.config.staging
+            else:
+                override_config: Dict[str, Dict] = self.config.test
+
+            except_matches = False
+            # What not to override
+            if "except" in override_config:
+                except_matches = eval(
+                    override_config["except"],
+                    {
+                        "re": re
+                    },
+                    {
+                        "database": name_components.database,
+                        "schema": name_components.schema,
+                        "relation": name_components.relation
+                    }
+                )
+
+            if not except_matches:
+                override = override_config["override"]
+                for override_component, override_directives in override.items():
+                    existing_value = getattr(name_components, override_component, "")
+                    for directive, value in override_directives.items():
+                        if directive == 'suffix':
+                            setattr(name_components, override_component, existing_value + value)
+                        elif directive == 'prefix':
+                            setattr(name_components, override_component, value + existing_value)
+                        elif directive == 'regex':
+                            new_value = re.sub(value["pattern"], value["replace"], existing_value)
+                            setattr(name_components, override_component, new_value)
+
+    @property
+    @lru_cache(maxsize=1)
+    def name_components(self) -> SimpleNamespace:
+        """ Name components for an element
+        """
+        components = SimpleNamespace(
+            database=None,
+            schema=f"{self.schema_name}",
+            relation=self.table_name
+        )
+        self.preprocess_names(components)
+        return components
+
     @property
     def name(self) -> str:
         """ Full Table name
         """
-        return f'{self.schema_prefix}{self.schema_name}.{self.table_name}'
+        components = self.name_components
+        # Gather non-empty components
+        existing_components = (c for c in (
+                components.database,
+                components.schema,
+                components.relation
+            ) if c)
+        return '.'.join(existing_components)
 
     @property
-    def table_dependencies(self) -> List[str]:
-        """ List of tables mentioned in the SQL query
+    def name_mat(self) -> str:
+        """ Full Table name for materialized view back-end
         """
-        #TODO: This can be done more reliably with sqlparse
-        return [str(match) for match in re.findall(r'(?:FROM|JOIN)\s*([a-zA-Z0-9_]*\.[a-zA-Z0-9_]*)(?:\s|;)',
-                                                   self.query, re.DOTALL)]
+        components = self.name_components
+        # Gather non-empty components
+        existing_components = (c for c in (
+                components.database,
+                components.schema + self.schema_suffix,
+                components.relation
+            ) if c)
+        return '.'.join(existing_components)
 
     @property
-    def select_stmt(self) -> Union[str, None]:
-        """ Parses out something that looks like a `SELECT` statement from the query
+    def schema(self) -> str:
+        """ Full Schema name
         """
-        # Anything that starts with `SELECT` or `WITH`, and ends with a semicolon or end of file
-        match = re.search(r'((SELECT|WITH)(\'.*\'|[^;])*)(;|$)', self.query, re.DOTALL)
-        if match is not None:
-            select_stmt = match.group(1).strip()
-            # Rudimentary validation of parentheses + a simple attempt to fix a very specific instance of bad SQL code
-            if select_stmt[-1] == ')' and select_stmt.count(')') > select_stmt.count('('):
-                select_stmt = select_stmt[:-1]
-        # No SQL Statement found, return None
-        else:
-            select_stmt = None
-        return select_stmt
+        components = self.name_components
+        # Gather non-empty components
+        existing_components = (c for c in (
+                components.database,
+                components.schema
+            ) if c)
+        return '.'.join(existing_components)
+
+    @property
+    def schema_mat(self) -> str:
+        """ Full Schema name for materialized view back-end
+        """
+        components = self.name_components
+        # Gather non-empty components
+        existing_components = (c for c in (
+                components.database,
+                components.schema + self.schema_suffix
+            ) if c)
+        return '.'.join(existing_components)
 
     @property
     def unique_keys(self) -> List[str]:
@@ -92,70 +200,102 @@ class Query(object):
             unique_keys = []
         return unique_keys
 
-    @property
-    def create_view_stmt(self) -> str:
+    def select_stmt(self) -> Union[str, None]:
+        """ Query that has DML, stripped of DDL
+        """
+        dml: Union[None, parsing.Query] = None
+        for stmt in self.managed_statements:
+            if stmt.has_dml:
+                dml = stmt.without_ddl
+                break
+        if not dml:
+            return None
+        for source in dml.sources:
+            self.preprocess_names(source)
+        return str(dml)
+
+    def create_view_stmt(self) -> Iterable[str]:
         """ Statement that creates a view out of `select_stmt`
         """
-        return dedent(f"""
-        CREATE SCHEMA IF NOT EXISTS {self.schema_name}{self.schema_suffix};
-        DROP VIEW IF EXISTS {self.name} CASCADE;
+        return (f"""
+        CREATE SCHEMA IF NOT EXISTS {self.schema}
+        """,
+        f"""
+        DROP VIEW IF EXISTS {self.name} CASCADE
+        """,
+        f"""
         CREATE VIEW {self.name}
         AS
-        {self.select_stmt};
+        {self.select_stmt()}
         """)
 
-    @property
-    def create_table_stmt(self) -> str:
+    def create_table_stmt(self) -> Iterable[str]:
         """ Statement that creates a table out of `select_stmt`
         """
-        return dedent(f"""
-        DROP TABLE IF EXISTS {self.name} CASCADE;
+        return (f"""
+        CREATE SCHEMA IF NOT EXISTS {self.schema}
+        """,
+        f"""
+        DROP TABLE IF EXISTS {self.name} CASCADE
+        """,
+        f"""
         CREATE TABLE {self.name}
         AS
-        {self.select_stmt};
+        {self.select_stmt()}
         """)
 
-    @property
-    def materialize_view_stmt(self) -> str:
+    def materialize_view_stmt(self) -> Iterable[str]:
         """ Statement that creates a "materialized" view, or equivalent, out of a `select_stmt`
         """
-        return dedent(f"""
-        CREATE SCHEMA IF NOT EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix};
-        DROP TABLE IF EXISTS {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name} CASCADE;
-        CREATE TABLE {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name}
+        return (f"""
+        CREATE SCHEMA IF NOT EXISTS {self.schema_mat}
+        """,
+        f"""
+        DROP TABLE IF EXISTS {self.name_mat} CASCADE
+        """,
+        f"""
+        CREATE TABLE {self.name_mat}
         AS
-        {self.select_stmt};
-        DROP VIEW IF EXISTS {self.name} CASCADE;
+        {self.select_stmt()}
+        """,
+        f"""
+        DROP VIEW IF EXISTS {self.name} CASCADE
+        """,
+        f"""
         CREATE VIEW {self.name}
         AS
-        SELECT * FROM {self.schema_prefix}{self.schema_name}{self.schema_suffix}.{self.table_name};
+        SELECT * FROM {self.name_mat}
         """)
 
-    @property
-    def run_check_stmt(self) -> str:
-        return dedent(self.select_stmt)
+    def run_check_stmt(self) -> Iterable[str]:
+        return self.select_stmt(),
 
-    @property
-    def skip(self):
+    def skip(self) -> Iterable[str]:
         """ Empty statement, skip
         """
-        return ""
+        return ()
 
 
-class DB():
-    def __init__(self, config: SimpleNamespace):
+class DB:
+    def __init__(self, config: SimpleNamespace, cold_run: bool):
         self.cursor = None
-    
+        self.cold_run: bool = cold_run
+
     def execute(self, stmt: str, query: Query = None):
         """Execute statement using DB-specific connector
         """
         raise Exception(f"`execute()` not implemented for type {type(self)}")
 
+    def clean_specific_schemas(self, schemata: List[str]):
+        """ Drop a specific list of schemata
+        """
+        raise Exception(f"`clean_specific_schemas()` not implemented for type {type(self)}")
+
     def clean_schemas(self, prefix: str):
         """ Drop schemata that have a specific name prefix
         """
         raise Exception(f"`clean_schemas()` not implemented for type {type(self)}")
-    
+
     def save(self, monitor_schema: str, dependencies: List[Dict]):
         """ Save dependencies list in the database in the `monitor_schema` schema
         """
@@ -180,16 +320,22 @@ class DB():
         self.execute(insert_stmt)
 
     def fetchone(self):
+        if self.cold_run:
+            return None
         return self.cursor.fetchone()
 
     def fetchmany(self):
+        if self.cold_run:
+            return []
         return self.cursor.fetchmany()
 
     def fetchall(self):
+        if self.cold_run:
+            return []
         return self.cursor.fetchall()
 
 
-def get_db_and_query_classes(config: SimpleNamespace) -> Tuple[DB, Query]:
+def get_db_and_query_classes(config: SimpleNamespace) -> Tuple[Callable[[Any, bool], DB], Callable[[], Query]]:
     """Returns database specific connector and query class
     """
     # If you know of an easier to write method that's also easy to debug, and easy enough for anyone to understand,
@@ -207,37 +353,3 @@ def get_db_and_query_classes(config: SimpleNamespace) -> Tuple[DB, Query]:
     else:
         raise Exception(f"Unknown database type: {config.database_type}")
     return _DB, _Query
-
-
-def get_source_entities(query):
-    res = sqlparse.parse(query)
-    names = []
-    for stmt in res:
-        tokens = list(t for t in stmt.flatten() if not t.is_whitespace)
-        from_or_join = re.compile(r'(from|join)', re.IGNORECASE)
-        expect_name = False
-        was_name = False
-
-        for t in tokens:
-            rt = repr(t)
-            if rt.startswith("<Keyword") and from_or_join.search(t.value):
-                names.append('')
-                expect_name = True
-                was_name = False
-            elif was_name:
-                was_name = False
-                if rt.startswith("<Punctuation"):
-                    if t.value=='.':
-                        names[-1] += '.'
-                        expect_name = True
-                    elif t.value==',':
-                        names.append('')
-                        expect_name = True
-            elif expect_name:
-                if rt.startswith("<Punctuation") or rt.startswith("<DML"):
-                    expect_name = False
-                elif rt.startswith("<Name") or rt.startswith("<Symbol"):
-                    expect_name = False
-                    was_name = True
-                    names[-1] += t.value.strip('[]"`')
-    return names
