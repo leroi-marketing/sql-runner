@@ -33,7 +33,7 @@ class Dependencies:
                 # deduplicate sources
                 sources = set()
                 for query in parsing.Query.get_queries(select_stmt):
-                    for source in query.sources:
+                    for source in query.sources():
                         # Ignore sources without a specified schema
                         if source.schema:
                             source_schema = source.schema.lower()

@@ -72,6 +72,12 @@ class BigQueryQuery(Query):
         {self.select_stmt()}
         """)
 
+    def create_mock_relation_stmt(self) -> Iterable[str]:
+        """ Statement that creates a mock relation out of `select_stmt`
+        """
+        # BigQuery charges per table scan, regardless of LIMIT clause. Cost-wise it makes more sense to make it a view
+        return self.create_view_stmt()
+
     def create_view_stmt(self) -> Iterable[str]:
         """ Statement that creates a view out of `select_stmt`
         """

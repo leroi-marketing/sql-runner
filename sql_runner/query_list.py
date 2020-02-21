@@ -18,6 +18,8 @@ class QueryList(list):
     actions: Dict[str, str] = {
         'e': 'query',
         't': 'create_table_stmt',
+        # For testing whether the query works
+        'mock': 'create_mock_relation_stmt',
         'v': 'create_view_stmt',
         'm': 'materialize_view_stmt',
         'check': 'run_check_stmt',
@@ -33,12 +35,14 @@ class QueryList(list):
         self.cold_run = cold_run
         self.db: DB = DBClass(config, cold_run)
         given_order = []
-        available_set = {}
+        available_queries_dict = {}
         for query in csv.DictReader(io.StringIO(csv_string.strip()), delimiter=';'):
             if not query['schema_name'].startswith('#'):
                 given_order.append(query)
-                available_set[(query['schema_name'], query['table_name'])] = query
+                available_queries_dict[(query['schema_name'], query['table_name'])] = query
         
+        available_queries_set = set(available_queries_dict.keys())
+
         indexed_dependencies = defaultdict(list)
         for d in dependencies:
             indexed_dependencies[(d['dependent_schema'], d['dependent_table'])].append(
@@ -49,9 +53,12 @@ class QueryList(list):
             if (schema, table) in indexed_dependencies:
                 for dep in indexed_dependencies[(schema, table)]:
                     add_query(*dep)
-            if (schema, table) in available_set:
-                self.append(QueryClass(config, execution_type, **available_set[(schema, table)]))
-                del available_set[(schema, table)]
+            if (schema, table) in available_queries_dict:
+                self.append(
+                    QueryClass(config, execution_type, **available_queries_dict[(schema, table)],
+                               available_queries=available_queries_dict)
+                )
+                del available_queries_dict[(schema, table)]
         
         for query in given_order:
             add_query(query['schema_name'], query['table_name'])
@@ -83,7 +90,7 @@ class QueryList(list):
                 if query.action in {'e', 'check'}:
                     query.action = 's'
                 else:
-                    query.action = 'v'
+                    query.action = 'mock'
             print(query)
             if query.action in QueryList.actions:
                 # Any of 'query', 'create_table_stmt', 'create_view_stmt', 'materialize_view_stmt', 'run_check'
@@ -99,7 +106,7 @@ class QueryList(list):
                         if assertion:
                             assertion(rows=self.db.fetchall())
                 # Keep track of what gets created in the test
-                if self.execution_type == ExecutionType.test and query.action == 'v':
+                if self.execution_type == ExecutionType.test and query.action == 'mock':
                     created_schemata.add(query.schema)
             print(datetime.datetime.now() - start)
 

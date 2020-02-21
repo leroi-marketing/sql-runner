@@ -61,9 +61,16 @@ class AzureDwhQuery(Query):
         CREATE TABLE {self.name}
         WITH ( {self.distribution} )
         AS
-        {self.select_stmt}
+        {self.select_stmt()}
         """
         )
+
+    def create_mock_relation_stmt(self) -> Iterable[str]:
+        """ Statement that creates a mock relation out of `select_stmt`
+        """
+        # For now, make it a view
+        # TODO: For the future it might make sense to modify the select_stmt to insert the `TOP 0` after `SELECT`
+        return self.create_view_stmt()
 
     def create_view_stmt(self) -> Iterable[str]:
         """ Statement that creates a view out of `select_stmt`
@@ -83,7 +90,7 @@ class AzureDwhQuery(Query):
         f"""
         CREATE VIEW {self.name}
         AS
-        {self.select_stmt};
+        {self.select_stmt()};
         """
         )
 
@@ -115,7 +122,7 @@ class AzureDwhQuery(Query):
             {self.distribution}
         )
         AS
-        {self.select_stmt}
+        {self.select_stmt()}
         """,
         f"""
         IF {self.view_exists_stmt(self.schema)}

@@ -2,14 +2,20 @@ import snowflake.connector
 import traceback
 import sys
 from types import SimpleNamespace
-from typing import List
+from typing import List, Iterable
 from textwrap import dedent
 
 from sql_runner.db import Query, DB, FakeCursor
 
 
 class SnowflakeQuery(Query):
-    pass
+    def create_mock_relation_stmt(self) -> Iterable[str]:
+        """ Statement that creates a mock relation out of `select_stmt`
+        """
+        # Snowflake doesn't care about `LIMIT 0` when selecting - it still scans and computes everything
+        # So the first tables that get created from original data take forever
+        # This has to be views
+        return self.create_view_stmt()
 
 
 class SnowflakeDB(DB):
