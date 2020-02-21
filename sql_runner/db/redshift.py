@@ -34,11 +34,10 @@ class RedshiftQuery(PostgresQuery):
             sortkey_stmt = ''
         return sortkey_stmt
 
-    @property
     def create_table_stmt(self) -> Iterable[str]:
         """ Statement that creates a table out of `select_stmt`
         """
-        return dedent(f"""
+        return (f"""
         CREATE SCHEMA IF NOT EXISTS {self.schema}
         """,
         f"""
@@ -47,17 +46,16 @@ class RedshiftQuery(PostgresQuery):
         f"""
         CREATE TABLE {self.name} {self.distkey_stmt} {self.sortkey_stmt}
         AS
-        {self.select_stmt}
+        {self.select_stmt()}
         """,
         f"""
         ANALYZE {self.name}
         """)
 
-    @property
     def materialize_view_stmt(self) -> Iterable[str]:
         """ Statement that creates a "materialized" view, or equivalent, out of a `select_stmt`
         """
-        return dedent(f"""
+        return (f"""
         CREATE SCHEMA IF NOT EXISTS {self.schema_mat}
         """,
         f"""
@@ -66,7 +64,7 @@ class RedshiftQuery(PostgresQuery):
         f"""
         CREATE TABLE {self.name_mat} {self.distkey_stmt} {self.sortkey_stmt}
         AS
-        {self.select_stmt}
+        {self.select_stmt()}
         """,
         f"""
         ANALYZE {self.name_mat}

@@ -41,7 +41,6 @@ class AzureDwhQuery(Query):
         """
         return self.object_exists_stmt(schema_name, view=True)
 
-    @property
     def create_table_stmt(self) -> Iterable[str]:
         """ Statement that creates a table out of `select_stmt`
         """
@@ -66,7 +65,6 @@ class AzureDwhQuery(Query):
         """
         )
 
-    @property
     def create_view_stmt(self) -> Iterable[str]:
         """ Statement that creates a view out of `select_stmt`
         """
@@ -89,7 +87,6 @@ class AzureDwhQuery(Query):
         """
         )
 
-    @property
     def materialize_view_stmt(self) -> Iterable[str]:
         """ Statement that creates a materialized view, out of a `select_stmt`
         """

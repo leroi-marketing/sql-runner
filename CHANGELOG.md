@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 (2020-02-13)
+## 0.4.0 (2020-02-21)
 **Breaking change**
 - Queries are now being modified on-the-fly to facilitate full forking of data, either with chaining views (when running with `--test`) or to build data in a staging environment (when running with `--staging`)
 - DML statements from comments, as well as parsing semicolons from comments is no longer an issue. Comments from statements are being ignored unless they're functional

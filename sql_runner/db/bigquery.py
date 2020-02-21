@@ -60,7 +60,6 @@ class BigQueryQuery(Query):
         else:
             return ''
 
-    @property
     def create_table_stmt(self) -> Iterable[str]:
         """ Statement that creates a table out of `select_stmt`
         """
@@ -70,10 +69,9 @@ class BigQueryQuery(Query):
         f"""
         CREATE OR REPLACE TABLE `{self.name}` {self.partition_by_stmt} {self.options_stmt}
         AS
-        {self.select_stmt}
+        {self.select_stmt()}
         """)
 
-    @property
     def create_view_stmt(self) -> Iterable[str]:
         """ Statement that creates a view out of `select_stmt`
         """
@@ -83,10 +81,9 @@ class BigQueryQuery(Query):
         f"""
         CREATE OR REPLACE VIEW `{self.name}`
         AS
-        {self.select_stmt}
+        {self.select_stmt()}
         """)
 
-    @property
     def materialize_view_stmt(self) -> Iterable[str]:
         """ Statement that creates a "materialized" view, or equivalent, out of a `select_stmt`
         """
@@ -96,7 +93,7 @@ class BigQueryQuery(Query):
         f"""
         CREATE OR REPLACE TABLE `{self.name_mat}` {self.partition_by_stmt} {self.options_stmt}
         AS
-        {self.select_stmt}
+        {self.select_stmt()}
         """,
         f"""
         DROP VIEW IF EXISTS `{self.name}`
