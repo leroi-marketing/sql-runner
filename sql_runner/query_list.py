@@ -55,8 +55,7 @@ class QueryList(list):
                     add_query(*dep)
             if (schema, table) in available_queries_dict:
                 self.append(
-                    QueryClass(config, execution_type, **available_queries_dict[(schema, table)],
-                               available_queries=available_queries_dict)
+                    QueryClass(config, execution_type, **available_queries_dict[(schema, table)])
                 )
                 del available_queries_dict[(schema, table)]
         

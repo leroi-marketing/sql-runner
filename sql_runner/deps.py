@@ -2,10 +2,13 @@ import os
 import re
 
 import networkx as nx
+import csv
+from hashlib import md5
+from collections import defaultdict
 from sql_runner.db import get_db_and_query_classes, DB
 from sql_runner import parsing
 from types import SimpleNamespace
-from typing import Set, List, Dict
+from typing import Set, List, Dict, Tuple
 from functools import lru_cache
 
 
@@ -13,6 +16,15 @@ class Dependencies:
     def __init__(self, config: SimpleNamespace):
         self.config = config
         print("Parsing queries to determine dependencies")
+        cached_dependencies: List[Dict[str, str]] = self.load_cache()
+        dependency_cache: Dict[Tuple[str, str, str], List[Dict[str, str]]] = defaultdict(list)
+        for d in cached_dependencies:
+            dependency_cache[(
+                d['dependent_schema'],
+                d['dependent_table'],
+                d['md5']
+            )].append(d)
+
         self.dependencies: List[Dict[str, str]] = []
         for root, _, file_names in os.walk(config.sql_path):
             if os.path.basename(root) in config.exclude_dependencies:
@@ -25,11 +37,20 @@ class Dependencies:
                 file_path = os.path.normpath(os.path.join(root, file_name))
                 with open(file_path, 'r', encoding=getattr(self.config, 'encoding', 'utf-8')) as sql_file:
                     select_stmt = sql_file.read()
+                    hash_md5 = md5()
+                    hash_md5.update(select_stmt.encode("utf-8"))
+                    checksum = hash_md5.hexdigest()
                     if select_stmt == '':
                         continue
 
                 dependent_schema = os.path.basename(os.path.normpath(root))
                 dependent_table = file_name[:-4]
+
+                cache_key = (dependent_schema, dependent_table, checksum)
+                if cache_key in dependency_cache:
+                    self.dependencies += dependency_cache[cache_key]
+                    continue
+
                 # deduplicate sources
                 sources = set()
                 for query in parsing.Query.get_queries(select_stmt):
@@ -41,11 +62,32 @@ class Dependencies:
                             sources.add((source_schema, source_table))
                 for source_schema, source_table in sources:
                     self.dependencies.append({
+                        'md5': checksum,
                         'source_schema': source_schema,
                         'source_table': source_table,
                         'dependent_schema': dependent_schema,
                         'dependent_table': dependent_table
                     })
+        self.save_cache()
+
+    def load_cache(self) -> List[Dict[str, str]]:
+        cache_config = self.config.deps_cache
+        if cache_config['type'] == 'filesystem':
+            if os.path.exists(cache_config['location']):
+                with open(cache_config['location'], 'r') as fp:
+                    return list(csv.DictReader(fp))
+        return []
+
+    def save_cache(self):
+        if not self.dependencies:
+            return
+        cache_config = self.config.deps_cache
+        if cache_config['type'] == 'filesystem':
+            os.makedirs(os.path.dirname(cache_config['location']), exist_ok=True)
+            with open(cache_config['location'], 'w') as fp:
+                writer = csv.DictWriter(fp, self.dependencies[0].keys())
+                writer.writeheader()
+                writer.writerows(self.dependencies)
 
     @property
     @lru_cache(maxsize=1)
