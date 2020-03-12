@@ -53,6 +53,14 @@ def parse_args():
     )
 
     parser.add_argument(
+        '-i',
+        '--except-locally-independent',
+        help='When testing or staging, don\'t modify DML for locally independent nodes for this execution',
+        action="store_true",
+        default=False
+    )
+
+    parser.add_argument(
         '--database',
         help='Database name to override for config. Will also change source directory for sql files.',
         nargs='?',
@@ -96,11 +104,11 @@ def run(args):
         execution_list = args.test
 
     if execution_type != ExecutionType.none:
-        qlist = query_list.QueryList.from_csv_files(config, execution_list, args.cold_run, dependencies.dependencies,
+        qlist = query_list.QueryList.from_csv_files(config, args, execution_list, dependencies.dependencies,
                                                     execution_type)
         qlist.run()
 
-    if args.deps:
+    elif args.deps:
         schema = config.deps_schema
         dependencies.save(schema)
         dependencies.viz()

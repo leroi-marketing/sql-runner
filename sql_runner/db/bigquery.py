@@ -34,10 +34,11 @@ class FakeClient:
 
 
 class BigQueryQuery(Query):
-    def __init__(self, config: SimpleNamespace, schema_name: str, table_name: str, action: str):
+    def __init__(self, config: SimpleNamespace, args: SimpleNamespace, all_created_entities: Set[Tuple[str, str]],
+                 schema_name: str, table_name: str, action: str):
         # BigQuery requires explicit database
         config.explicit_database = True
-        super().__init__(config, schema_name, table_name, action)
+        super().__init__(config, args, all_created_entities, schema_name, table_name, action)
         self.database = config.auth["database"]
 
     @property

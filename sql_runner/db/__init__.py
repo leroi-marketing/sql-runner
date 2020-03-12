@@ -1,7 +1,7 @@
 import os
 import re
 from types import SimpleNamespace, FunctionType
-from typing import List, Dict, Union, Tuple, Iterator, Iterable, Callable, Any
+from typing import List, Dict, Union, Tuple, Set, Iterator, Iterable, Callable, Any
 from functools import partial, lru_cache
 import csv
 import io
@@ -30,9 +30,11 @@ class Query(object):
 
     default_schema_suffix = '_mat'
 
-    def __init__(self, config: SimpleNamespace, execution_type: ExecutionType, schema_name: str,
-                 table_name: str, action: str):
+    def __init__(self, config: SimpleNamespace, args: SimpleNamespace, all_created_entities: Set[Tuple[str, str]],
+                 execution_type: ExecutionType, schema_name: str, table_name: str, action: str):
         self.config: SimpleNamespace = config
+        self.args: SimpleNamespace = args
+        self.all_created_entities: Set[Tuple[str, str]] = all_created_entities
         self.execution_type: ExecutionType = execution_type
         self.schema_name: str = schema_name.strip()
         # _mat when building "materialized" views
@@ -98,10 +100,14 @@ class Query(object):
             else:
                 override_config: Dict[str, Dict] = self.config.test
 
-            except_matches = False
+            perform_replace = True
+            if self.args.except_locally_independent \
+                    and (name_components.schema, name_components.relation) not in self.all_created_entities:
+                perform_replace = False
+
             # What not to override
-            if "except" in override_config:
-                except_matches = eval(
+            if perform_replace and "except" in override_config:
+                perform_replace = not eval(
                     override_config["except"],
                     {
                         "re": re
@@ -113,7 +119,7 @@ class Query(object):
                     }
                 )
 
-            if not except_matches:
+            if perform_replace:
                 override = override_config["override"]
                 for override_component, override_directives in override.items():
                     existing_value = getattr(name_components, override_component, "")
@@ -333,7 +339,7 @@ class DB:
         """
         raise Exception(f"`execute()` not implemented for type {type(self)}")
 
-    def clean_specific_schemas(self, schemata: List[str]):
+    def clean_specific_schemas(self, schemata: Iterable[str]):
         """ Drop a specific list of schemata
         """
         raise Exception(f"`clean_specific_schemas()` not implemented for type {type(self)}")
