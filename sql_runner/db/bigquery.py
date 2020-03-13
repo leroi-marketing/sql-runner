@@ -34,10 +34,11 @@ class FakeClient:
 
 
 class BigQueryQuery(Query):
-    def __init__(self, config: SimpleNamespace, schema_name: str, table_name: str, action: str):
+    def __init__(self, config: SimpleNamespace, args: SimpleNamespace, all_created_entities: Set[Tuple[str, str]],
+                 schema_name: str, table_name: str, action: str):
         # BigQuery requires explicit database
         config.explicit_database = True
-        super().__init__(config, schema_name, table_name, action)
+        super().__init__(config, args, all_created_entities, schema_name, table_name, action)
         self.database = config.auth["database"]
 
     @property
@@ -71,6 +72,12 @@ class BigQueryQuery(Query):
         AS
         {self.select_stmt()}
         """)
+
+    def create_mock_relation_stmt(self) -> Iterable[str]:
+        """ Statement that creates a mock relation out of `select_stmt`
+        """
+        # BigQuery charges per table scan, regardless of LIMIT clause. Cost-wise it makes more sense to make it a view
+        return self.create_view_stmt()
 
     def create_view_stmt(self) -> Iterable[str]:
         """ Statement that creates a view out of `select_stmt`

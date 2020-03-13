@@ -44,8 +44,14 @@ class Query:
         for stmt in stmts:
             yield Query(list(stmt.flatten()), start_quotes, end_quotes)
 
-    @property
-    def __tokens_as_str(self) -> str:
+    def clear_caches(self):
+        self.tokens_as_str.cache_clear()
+        self.has_dml.cache_clear()
+        self.sources.cache_clear()
+        self.without_ddl.cache_clear()
+
+    @lru_cache(maxsize=1)
+    def tokens_as_str(self) -> str:
         """ Converts the token list into a simplified string where each character is a token.
         This can then be parsed more reliably by regexp, and character position matches token position in the list.
         """
@@ -60,6 +66,8 @@ class Query:
             elif ttype in sqlparse.tokens.Keyword:
                 if 'JOIN' in token_value or 'FROM' in token_value:
                     chrtokens.append('f')
+                elif 'LIMIT' in token_value:
+                    chrtokens.append('l')
                 elif token_value == 'SELECT':
                     chrtokens.append('s')
                 elif ttype in sqlparse.tokens.Keyword.CTE:
@@ -78,23 +86,24 @@ class Query:
                 # cases like Identifier, Name, whether it's all quoted or quoted individual pieces. All of it becomes
                 # known as Identifier. But without Flatten, the parsing would have to be a bit more complex,
                 # with recursion, references to pieces of the query, but it should work in the next iteration just fine
+                # TODO: Handle this: MSSQL `SELECT TOP X` - `TOP` is seen as Name here.
                 chrtokens.append('n')
             elif ttype in sqlparse.tokens.Comment:
                 chrtokens.append('-')
             elif ttype in sqlparse.tokens.Operator:
                 chrtokens.append('o')
+            elif ttype in sqlparse.tokens.Literal.Number:
+                chrtokens.append('#')
             else:
                 chrtokens.append('?')
         return ''.join(chrtokens)
 
-    @property
     @lru_cache(maxsize=1)
     def has_dml(self) -> bool:
         """ Does this query contain any DML?
         """
-        return Query.dml_pattern.search(self.__tokens_as_str) is not None
+        return Query.dml_pattern.search(self.tokens_as_str()) is not None
 
-    @property
     @lru_cache(maxsize=1)
     def sources(self) -> Iterator["Source"]:
         """ Returns all the sources for a DML query
@@ -103,7 +112,7 @@ class Query:
         # be aware of each other, to handle changing of lengths
         sources: List["Source"] = []
         pattern, local_pattern = tuple(Query.source_patterns)
-        for m in pattern.finditer(self.__tokens_as_str):
+        for m in pattern.finditer(self.tokens_as_str()):
             span = m.span()
             offset = len(m.group(1))
             for ml in local_pattern.finditer(m.group(2)):
@@ -114,14 +123,13 @@ class Query:
                 sources.append(source)
         return sources
 
-    @property
     @lru_cache(maxsize=1)
     def without_ddl(self) -> "Query":
         """ Strips the DDL header of the query, for queries like CREATE TABLE ... AS SELECT
         """
         pattern = Query.ddl_pattern
         matches = []
-        for match in pattern.finditer(self.__tokens_as_str):
+        for match in pattern.finditer(self.tokens_as_str()):
             span = match.span()
             offset = len(match.group(1))
             matches.append((span[0], span[0] + offset))
@@ -252,9 +260,9 @@ class Source(QueryPart):
     def __init__(self, query: Query, start: int, end: int):
         super().__init__(query, start, end)
         self.__individual_names = False
-        self.__relation: Union[PartialNameTokenWrapper, NameTokenWrapper] = None
-        self.__schema: Union[PartialNameTokenWrapper, NameTokenWrapper] = None
-        self.__database: Union[PartialNameTokenWrapper, NameTokenWrapper] = None
+        self.__relation: Union[PartialNameTokenWrapper, NameTokenWrapper, None] = None
+        self.__schema: Union[PartialNameTokenWrapper, NameTokenWrapper, None] = None
+        self.__database: Union[PartialNameTokenWrapper, NameTokenWrapper, None] = None
         self.right_neighbor: Union[None, "Source"] = None
         self.compute_source()
 
@@ -357,6 +365,8 @@ class Source(QueryPart):
                 # Insert dot, then the new (database) token
                 schema.query.tokens.insert(schema_index, new_dot)
                 schema.query.tokens.insert(schema_index, token)
+                # Invalidate cached query data
+                schema.query.clear_caches()
                 # Increment the end position by 2 tokens (database and dot)
                 self._end += 2
                 if self.right_neighbor:
