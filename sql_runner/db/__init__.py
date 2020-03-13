@@ -1,10 +1,11 @@
 import os
 import re
 from types import SimpleNamespace, FunctionType
-from typing import List, Dict, Union, Tuple, Iterator, Iterable, Callable, Any
+from typing import List, Dict, Union, Tuple, Set, Iterator, Iterable, Callable, Any
 from functools import partial, lru_cache
 import csv
 import io
+import sqlparse
 
 from sql_runner import tests, parsing, ExecutionType
 
@@ -29,9 +30,11 @@ class Query(object):
 
     default_schema_suffix = '_mat'
 
-    def __init__(self, config: SimpleNamespace, execution_type: ExecutionType, schema_name: str,
-                 table_name: str, action: str):
+    def __init__(self, config: SimpleNamespace, args: SimpleNamespace, all_created_entities: Set[Tuple[str, str]],
+                 execution_type: ExecutionType, schema_name: str, table_name: str, action: str):
         self.config: SimpleNamespace = config
+        self.args: SimpleNamespace = args
+        self.all_created_entities: Set[Tuple[str, str]] = all_created_entities
         self.execution_type: ExecutionType = execution_type
         self.schema_name: str = schema_name.strip()
         # _mat when building "materialized" views
@@ -97,10 +100,14 @@ class Query(object):
             else:
                 override_config: Dict[str, Dict] = self.config.test
 
-            except_matches = False
+            perform_replace = True
+            if self.args.except_locally_independent \
+                    and (name_components.schema, name_components.relation) not in self.all_created_entities:
+                perform_replace = False
+
             # What not to override
-            if "except" in override_config:
-                except_matches = eval(
+            if perform_replace and "except" in override_config:
+                perform_replace = not eval(
                     override_config["except"],
                     {
                         "re": re
@@ -112,7 +119,7 @@ class Query(object):
                     }
                 )
 
-            if not except_matches:
+            if perform_replace:
                 override = override_config["override"]
                 for override_component, override_directives in override.items():
                     existing_value = getattr(name_components, override_component, "")
@@ -124,6 +131,34 @@ class Query(object):
                         elif directive == 'regex':
                             new_value = re.sub(value["pattern"], value["replace"], existing_value)
                             setattr(name_components, override_component, new_value)
+
+    def limit_0(self, dml: parsing.Query) -> None:
+        tokens_as_str = dml.tokens_as_str()
+        # Does it already have a LIMIT clause?
+        re_result = re.search(r"l[\s-]+#[\s-]*[);]?[\s-]*$", tokens_as_str)
+        if re_result:
+            limit_start = re_result.span()[0]
+            limit_clause = re_result.group(0)
+            limit_index = limit_clause.find("#") + limit_start
+            dml.tokens[limit_index].value = "0"
+        else:
+            # No limit clause exist. Find end of query and insert one
+            re_result = re.search(r"[;)]?[\s-]*$", tokens_as_str)
+            if re_result:
+                insert_position = re_result.span()[0]
+                tokens_to_insert = [
+                    sqlparse.sql.Token(sqlparse.tokens.Whitespace,             "\n"),
+                    sqlparse.sql.Token(sqlparse.tokens.Keyword,                "LIMIT"),
+                    sqlparse.sql.Token(sqlparse.tokens.Whitespace,             " "),
+                    sqlparse.sql.Token(sqlparse.tokens.Literal.Number.Integer, "0")
+                ]
+                # insert in reverse order to preserve insertion point index
+                for token in tokens_to_insert[::-1]:
+                    dml.tokens.insert(insert_position, token)
+                # Notify the query that it has a different token list now
+                dml.clear_caches()
+            else:
+                raise Exception("Could not find end of query to insert LIMIT statement.")
 
     @property
     @lru_cache(maxsize=1)
@@ -200,18 +235,21 @@ class Query(object):
             unique_keys = []
         return unique_keys
 
-    def select_stmt(self) -> Union[str, None]:
+    def select_stmt(self,
+                    extra_manipulations: Union[None, Callable[[parsing.Query], None]] = None) -> Union[str, None]:
         """ Query that has DML, stripped of DDL
         """
         dml: Union[None, parsing.Query] = None
         for stmt in self.managed_statements:
-            if stmt.has_dml:
-                dml = stmt.without_ddl
+            if stmt.has_dml():
+                dml = stmt.without_ddl()
                 break
         if not dml:
             return None
-        for source in dml.sources:
+        for source in dml.sources():
             self.preprocess_names(source)
+        if extra_manipulations:
+            extra_manipulations(dml)
         return str(dml)
 
     def create_view_stmt(self) -> Iterable[str]:
@@ -227,6 +265,21 @@ class Query(object):
         CREATE VIEW {self.name}
         AS
         {self.select_stmt()}
+        """)
+
+    def create_mock_relation_stmt(self) -> Iterable[str]:
+        """ Statement that creates a mock relation out of `select_stmt`
+        """
+        return (f"""
+        CREATE SCHEMA IF NOT EXISTS {self.schema}
+        """,
+        f"""
+        DROP TABLE IF EXISTS {self.name} CASCADE
+        """,
+        f"""
+        CREATE TABLE {self.name}
+        AS
+        {self.select_stmt(self.limit_0)}
         """)
 
     def create_table_stmt(self) -> Iterable[str]:
@@ -286,7 +339,7 @@ class DB:
         """
         raise Exception(f"`execute()` not implemented for type {type(self)}")
 
-    def clean_specific_schemas(self, schemata: List[str]):
+    def clean_specific_schemas(self, schemata: Iterable[str]):
         """ Drop a specific list of schemata
         """
         raise Exception(f"`clean_specific_schemas()` not implemented for type {type(self)}")

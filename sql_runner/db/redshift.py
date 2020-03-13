@@ -52,6 +52,12 @@ class RedshiftQuery(PostgresQuery):
         ANALYZE {self.name}
         """)
 
+    def create_mock_relation_stmt(self) -> Iterable[str]:
+        """ Statement that creates a mock relation out of `select_stmt`
+        """
+        # Redshift handles views well. It doesn't make sense to use anything else for this purpose
+        return self.create_view_stmt()
+
     def materialize_view_stmt(self) -> Iterable[str]:
         """ Statement that creates a "materialized" view, or equivalent, out of a `select_stmt`
         """
