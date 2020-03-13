@@ -70,6 +70,9 @@ class RedshiftQuery(PostgresQuery):
         ANALYZE {self.name_mat}
         """,
         f"""
+        CREATE SCHEMA IF NOT EXISTS {self.schema}
+        """,
+        f"""
         DROP VIEW IF EXISTS {self.name} CASCADE
         """,
         f"""
