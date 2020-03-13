@@ -103,7 +103,7 @@ class Dependencies:
             })
         os.environ["PATH"] += os.pathsep + self.config.graphviz_path
         nx.drawing.nx_pydot.to_pydot(dag).write_svg('dependencies.svg')
-        if self.config.s3_bucket:
+        if getattr(self.config, 's3_bucket', False):
             import boto3
             s3 = boto3.resource('s3')
             body = open('dependencies.svg', 'rb')
