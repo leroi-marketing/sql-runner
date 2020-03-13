@@ -71,15 +71,16 @@ class Dependencies:
         self.save_cache()
 
     def load_cache(self) -> List[Dict[str, str]]:
-        cache_config = self.config.deps_cache
-        if cache_config['type'] == 'filesystem':
-            if os.path.exists(cache_config['location']):
-                with open(cache_config['location'], 'r') as fp:
-                    return list(csv.DictReader(fp))
+        if hasattr(self.config, 'deps_cache'):
+            cache_config = self.config.deps_cache
+            if cache_config['type'] == 'filesystem':
+                if os.path.exists(cache_config['location']):
+                    with open(cache_config['location'], 'r') as fp:
+                        return list(csv.DictReader(fp))
         return []
 
     def save_cache(self):
-        if not self.dependencies:
+        if not self.dependencies or not hasattr(self.config, 'deps_cache'):
             return
         cache_config = self.config.deps_cache
         if cache_config['type'] == 'filesystem':
