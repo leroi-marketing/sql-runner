@@ -1,10 +1,17 @@
 # Changelog
 
-## 0.4.0 (2020-02-21)
+## 0.4.1 (2020-03-24)
+
 **Breaking change**
+
+**Safe for most production environments**
+
 - Queries are now being modified on-the-fly to facilitate full forking of data, either with chaining views (when running with `--test`) or to build data in a staging environment (when running with `--staging`)
 - DML statements from comments, as well as parsing semicolons from comments is no longer an issue. Comments from statements are being ignored unless they're functional
 - Configuration for `--test` and `--staging` has changed. Explicit `schema_prefix` is no longer used.
+- `--test` no longer performs `v` action, but rather `mock`, which, in the most part, is the same as `v`, but will be overridden in the future for Snowflake for example, to allow chaining mock structures, as views cause compilation memory issues on Snowflake.
+- New `--except-locally-independent` option for `test` runs, that base new views on test views that are being created in this run, otherwise on original data structures. This allows running tests on a limited data model part, when the other mock structures don't exist or aren't updated.
+- New `--cold-run` option, forces the sqlrunner to initiate mock database connections that only output every statement. No actual connection is made. This is done purely for debugging purposes.
 - Queries now reveal modifiable dependencies, and this functionality can be further extended.
 - Cleanup is now happening only on newly created schemata.
 

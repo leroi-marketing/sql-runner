@@ -50,6 +50,17 @@ class Query:
         self.sources.cache_clear()
         self.without_ddl.cache_clear()
 
+    def token_is_descendent_of(self, token: sqlparse.sql.Token, token_types, quit_at_types = tuple()) -> bool:
+        for token_type in token_types:
+            if isinstance(token, token_type):
+                return True
+        for token_type in quit_at_types:
+            if isinstance(token, token_type):
+                return False
+        if hasattr(token, 'parent') and token.parent is not None:
+            return self.token_is_descendent_of(token.parent, token_types, quit_at_types)
+        return False
+
     @lru_cache(maxsize=1)
     def tokens_as_str(self) -> str:
         """ Converts the token list into a simplified string where each character is a token.
@@ -65,7 +76,15 @@ class Query:
                 chrtokens.append(token.value[:1])
             elif ttype in sqlparse.tokens.Keyword:
                 if 'JOIN' in token_value or 'FROM' in token_value:
-                    chrtokens.append('f')
+                    if 'FROM' in token_value:
+                        if self.token_is_descendent_of(token,
+                                                       (sqlparse.sql.Function,),
+                                                       quit_at_types=(sqlparse.sql.Statement,sqlparse.sql.Identifier)):
+                            chrtokens.append('n')
+                        else:
+                            chrtokens.append('f')
+                    else:
+                        chrtokens.append('f')
                 elif 'LIMIT' in token_value:
                     chrtokens.append('l')
                 elif token_value == 'SELECT':

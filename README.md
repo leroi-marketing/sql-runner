@@ -125,6 +125,11 @@ Two configuration files are needed to use the sqlrunner.
       // python3 code that exposes `re` - regular expressions module, `database`, `schema`, `relation` being referenced
       "except": "not re.match('dwh', database.lower()) or re.search('^x', schema)"
     },
+    // Add a dependency cache file, to speed up run initialization
+    "deps_cache": {
+      "type": "filesystem",
+      "location": "/path/to/local/cache/dependencies.csv"
+    },
     "deps_schema": "{DEPENDENCY_SCHEMA_NAME}",
     "exclude_dependencies": [
         "EXCLUDED_SCHEMA_1",
