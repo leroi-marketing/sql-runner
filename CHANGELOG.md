@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.2 (2020-04-15)
+
+- Fix the `e` query option, that executes the query as-is. See details in commit message.
+
 ## 0.4.1 (2020-03-24)
 
 **Breaking change**

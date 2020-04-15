@@ -235,6 +235,13 @@ class Query(object):
             unique_keys = []
         return unique_keys
 
+    def execute_stmt(self):
+        """ Literal statement to execute
+        """
+        # Statement splitting, or any parsing whatsoever, is not being done due to this being preserved as an option
+        # to make literal DB queries, no matter how complex they are for `sqlparse`.
+        return (self.query,)
+
     def select_stmt(self,
                     extra_manipulations: Union[None, Callable[[parsing.Query], None]] = None) -> Union[str, None]:
         """ Query that has DML, stripped of DDL

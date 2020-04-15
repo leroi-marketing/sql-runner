@@ -12,7 +12,7 @@ from sql_runner.db import DB, get_db_and_query_classes
 class QueryList(list):
 
     actions: Dict[str, str] = {
-        'e': 'query',
+        'e': 'execute_stmt',
         't': 'create_table_stmt',
         # For testing whether the query works
         'mock': 'create_mock_relation_stmt',
