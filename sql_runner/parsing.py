@@ -143,6 +143,22 @@ class Query:
         return sources
 
     @lru_cache(maxsize=1)
+    def comment_contents(self) -> Iterator[str]:
+        for token in self.tokens:
+            if token.ttype in sqlparse.tokens.Comment.Multiline:
+                if token.value.startswith('/*'):
+                    yield token.value[2:-2].strip()
+                else:
+                    yield token.value.strip()
+            elif token.ttype in sqlparse.tokens.Comment.Single:
+                if token.value.startswith('--'):
+                    yield token.value[2:].strip()
+                elif token.value.startswith('#'):
+                    yield token.value[1:].strip()
+                else:
+                    yield token.value.strip()
+
+    @lru_cache(maxsize=1)
     def without_ddl(self) -> "Query":
         """ Strips the DDL header of the query, for queries like CREATE TABLE ... AS SELECT
         """

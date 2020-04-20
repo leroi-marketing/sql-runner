@@ -3,6 +3,7 @@ import re
 
 import networkx as nx
 import csv
+import json
 from hashlib import md5
 from collections import defaultdict
 from sql_runner.db import get_db_and_query_classes, DB
@@ -13,6 +14,10 @@ from functools import lru_cache
 
 
 class Dependencies:
+    # Version used for dependency caching invalidation
+    # Increment version when you make changes that impact detected dependencies
+    VERSION = b"1"
+
     def __init__(self, config: SimpleNamespace):
         self.config = config
         print("Parsing queries to determine dependencies")
@@ -38,6 +43,7 @@ class Dependencies:
                 with open(file_path, 'r', encoding=getattr(self.config, 'encoding', 'utf-8')) as sql_file:
                     select_stmt = sql_file.read()
                     hash_md5 = md5()
+                    hash_md5.update(Dependencies.VERSION)
                     hash_md5.update(select_stmt.encode("utf-8"))
                     checksum = hash_md5.hexdigest()
                     if select_stmt == '':
@@ -53,13 +59,47 @@ class Dependencies:
 
                 # deduplicate sources
                 sources = set()
+                has_explicit_dependencies = False
                 for query in parsing.Query.get_queries(select_stmt):
-                    for source in query.sources():
-                        # Ignore sources without a specified schema
-                        if source.schema:
-                            source_schema = source.schema.lower()
-                            source_table = source.relation.lower()
-                            sources.add((source_schema, source_table))
+                    ignored_dependencies = set()
+                    override_dependencies = None
+                    additional_dependencies = set()
+
+                    # first retrieve any functional comments that have information about dependencies
+                    for comment in query.comment_contents():
+                        functional_comment = None
+                        try:
+                            functional_comment = json.loads(comment)
+                        except:
+                            continue
+
+                        if 'node_id' in functional_comment:
+                            dependent_schema, dependent_table = functional_comment['node_id']
+                        if 'override_dependencies' in functional_comment:
+                            sources = set()
+                            for schema, table in functional_comment['override_dependencies']:
+                                sources.add((schema, table))
+                            has_explicit_dependencies = True
+                        if 'ignore_dependencies' in functional_comment:
+                            for schema, table in functional_comment['ignore_dependencies']:
+                                ignored_dependencies.add((schema, table))
+                        if 'additional_dependencies' in functional_comment:
+                            for schema, table in functional_comment['additional_dependencies']:
+                                additional_dependencies.add((schema, table))
+
+                    # If there aren't explicit dependencies, get them from query sources.
+                    if not has_explicit_dependencies:
+                        for source in query.sources():
+                            # Ignore sources without a specified schema
+                            if source.schema:
+                                source_schema = source.schema.lower()
+                                source_table = source.relation.lower()
+                                sources.add((source_schema, source_table))
+
+                        # Add / remove dependencies depending on functional comments
+                        sources.update(additional_dependencies)
+                        sources.difference_update(ignored_dependencies)
+
                 for source_schema, source_table in sources:
                     self.dependencies.append({
                         'md5': checksum,

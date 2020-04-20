@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.3 (2020-04-20)
+
+- Introduce explicit dependencies in functional comments (JSON)
+
 ## 0.4.2 (2020-04-15)
 
 - Fix the `e` query option, that executes the query as-is. See details in commit message.

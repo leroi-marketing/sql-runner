@@ -6,7 +6,7 @@ def get_long_description():
 
 setup(
     name='sql-runner',
-    version='0.4.2',
+    version='0.4.3',
 
     description="DEPT SQL runner",
     long_description=get_long_description(),
