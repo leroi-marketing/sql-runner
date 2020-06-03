@@ -64,6 +64,8 @@ To install in a virtual environment, run this:
 source venv/bin/activate
 # Install with dependencies, ex. s3 and azuredwh
 pip install git+https://github.com/leroi-marketing/sql-runner.git#egg=sql-runner[azuredwh]
+# Or install from pypi
+pip install sql-runner[azuredwh]
 ```
 
 But if you really want to install it globally, run this:
@@ -71,6 +73,8 @@ But if you really want to install it globally, run this:
 sudo apt install python3-pip
 # Install with dependencies, ex. s3 and azuredwh
 sudo pip install git+https://github.com/leroi-marketing/sql-runner.git#egg=sql-runner[azuredwh]
+# Or install from pypi
+pip install sql-runner[azuredwh]
 ```
 
 ### Configuration
@@ -89,7 +93,7 @@ Two configuration files are needed to use the sqlrunner.
         // for Snowflake only
         "account": "{SNOWFLAKE_ACCOUNT}",
 
-        // Azure Synapse Analytics DB, or Snowflake DB, or BigQuery DB
+        // Azure Synapse Analytics DB, or Snowflake DB, or BigQuery Project ID
         "database": "{DATABASE}",
 
         // Postgresql or Redshift

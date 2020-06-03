@@ -272,13 +272,20 @@ class PartialNameTokenWrapper:
     def get_from_token_wrapper(token_wrapper: NameTokenWrapper) -> Iterator["PartialNameTokenWrapper"]:
         val = token_wrapper.value
         end = len(val)
-        partial_values = reversed(val.split('.'))
+        quote_length = 0
+        if val[0] == val[-1] and val[0] in '\'"`' or \
+           val[0] == '[' and val[-1] == ']':
+            quote_length = 1
+        partial_values = list(reversed(val.split('.')))
         partial_name_token_wrappers = []
-        for partial_value in partial_values:
+        for index, partial_value in enumerate(partial_values):
+            # Values are reversed, so index 0 is last value actually
+            first_part_flag = 1 if index == len(partial_values) - 1 else 0
+            last_part_flag = 1 if index == 0 else 0
             partial_name_token_wrapper = PartialNameTokenWrapper(
                 token_wrapper,
-                end - len(partial_value),
-                end,
+                end - len(partial_value) + (quote_length & first_part_flag),
+                end - (quote_length & last_part_flag),
                 tuple(partial_name_token_wrappers)
             )
             # the partial name

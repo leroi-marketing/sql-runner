@@ -8,7 +8,8 @@ from google.cloud import bigquery
 from google.api_core import exceptions
 from google.cloud.bigquery.job import QueryJob
 from sql_runner.db import Query, DB, FakeCursor
-from typing import List, Dict, Iterable
+from sql_runner import ExecutionType
+from typing import List, Dict, Iterable, Set, Tuple
 
 '''
   ▄████  ▒█████   ▒█████    ▄████  ██▓    ▓█████     ▄▄▄▄    ██▓  ▄████   █████   █    ██ ▓█████  ██▀███ ▓██   ██▓
@@ -32,13 +33,16 @@ class FakeClient:
         self.fake_cursor.execute(statement)
         return SimpleNamespace(result=lambda: iter([]))
 
+    def delete_dataset(self, schema):
+        pass
+
 
 class BigQueryQuery(Query):
     def __init__(self, config: SimpleNamespace, args: SimpleNamespace, all_created_entities: Set[Tuple[str, str]],
-                 schema_name: str, table_name: str, action: str):
+                 execution_type: ExecutionType, schema_name: str, table_name: str, action: str):
         # BigQuery requires explicit database
         config.explicit_database = True
-        super().__init__(config, args, all_created_entities, schema_name, table_name, action)
+        super().__init__(config, args, all_created_entities, execution_type, schema_name, table_name, action)
         self.database = config.auth["database"]
 
     @property
@@ -141,7 +145,7 @@ class BigQueryDB(DB):
             return ''
 
         return re.sub(
-            r'(?<!\w)CREATE\s+SCHEMA\s+(?:IF\s+NOT\s+EXISTS\s+)?`([^`]+)`(?:;|$)',
+            r'(?<!\w)CREATE\s+SCHEMA\s+(?:IF\s+NOT\s+EXISTS\s+)?`([^`]+)`(?:;?\s*)$',
             replace,
             stmt,
             flags=re.IGNORECASE | re.DOTALL

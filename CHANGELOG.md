@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.5 (2020-06-04)
+
+- Fix bigquery-related errors:
+  - Quoted identifier parsing
+  - Type hints
+  - Class constructor arguments
+
 ## 0.4.3 (2020-04-20)
 
 - Introduce explicit dependencies in functional comments (JSON)
