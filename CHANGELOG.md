@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.6 (2020-06-16)
+
+- Fix the search for sql files to specific paths
+- Make sure that dependencies are unique on each line
+- Change cache key to reflect only file name and exact content
+
 ## 0.4.5 (2020-06-04)
 
 - Fix bigquery-related errors:

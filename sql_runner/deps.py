@@ -5,7 +5,8 @@ import networkx as nx
 import csv
 import json
 from hashlib import md5
-from collections import defaultdict
+from collections import defaultdict, namedtuple
+from glob import glob
 from sql_runner.db import get_db_and_query_classes, DB
 from sql_runner import parsing
 from types import SimpleNamespace
@@ -13,101 +14,107 @@ from typing import Set, List, Dict, Tuple
 from functools import lru_cache
 
 
+Dependency = namedtuple("Dependency", ['md5', 'source_schema', 'source_table', 'dependent_schema', 'dependent_table'])
+
+
 class Dependencies:
     # Version used for dependency caching invalidation
     # Increment version when you make changes that impact detected dependencies
-    VERSION = b"1"
+    VERSION = b"2"
 
     def __init__(self, config: SimpleNamespace):
         self.config = config
         print("Parsing queries to determine dependencies")
         cached_dependencies: List[Dict[str, str]] = self.load_cache()
-        dependency_cache: Dict[Tuple[str, str, str], List[Dict[str, str]]] = defaultdict(list)
+        dependency_cache: Dict[str, List[Dict[str, str]]] = defaultdict(list)
         for d in cached_dependencies:
-            dependency_cache[(
-                d['dependent_schema'],
-                d['dependent_table'],
-                d['md5']
-            )].append(d)
+            dependency_cache[d['md5']].append(d)
 
         self.dependencies: List[Dict[str, str]] = []
-        for root, _, file_names in os.walk(config.sql_path):
-            if os.path.basename(root) in config.exclude_dependencies:
+        # To make sure dependencies are unique
+        dependencies_set = set()
+        for file_path in glob(config.sql_path + '/*/*.sql'):
+            base_dir_name = os.path.basename(os.path.dirname(file_path))
+            file_name = os.path.basename(file_path)
+            if base_dir_name in config.exclude_dependencies:
                 continue
 
-            for file_name in file_names:
-                if file_name[-4:] != '.sql':
+            with open(file_path, 'r', encoding=getattr(self.config, 'encoding', 'utf-8')) as sql_file:
+                select_stmt = sql_file.read()
+                hash_md5 = md5()
+                hash_md5.update(Dependencies.VERSION)
+                hash_md5.update(f"{base_dir_name}/{file_name}".encode('utf-8'))
+                hash_md5.update(select_stmt.encode("utf-8"))
+                checksum = hash_md5.hexdigest()
+                if select_stmt == '':
                     continue
 
-                file_path = os.path.normpath(os.path.join(root, file_name))
-                with open(file_path, 'r', encoding=getattr(self.config, 'encoding', 'utf-8')) as sql_file:
-                    select_stmt = sql_file.read()
-                    hash_md5 = md5()
-                    hash_md5.update(Dependencies.VERSION)
-                    hash_md5.update(select_stmt.encode("utf-8"))
-                    checksum = hash_md5.hexdigest()
-                    if select_stmt == '':
+            dependent_schema = base_dir_name
+            dependent_table = file_name[:-4]
+
+            cache_key = checksum
+            if cache_key in dependency_cache:
+                for dep in dependency_cache[cache_key]:
+                    dependencies_set.add(Dependency(
+                        dep['md5'],
+                        dep['source_schema'],
+                        dep['source_table'],
+                        dep['dependent_schema'],
+                        dep['dependent_table']
+                    ))
+                continue
+
+            # deduplicate sources
+            sources = set()
+            has_explicit_dependencies = False
+            for query in parsing.Query.get_queries(select_stmt):
+                ignored_dependencies = set()
+                override_dependencies = None
+                additional_dependencies = set()
+
+                # first retrieve any functional comments that have information about dependencies
+                for comment in query.comment_contents():
+                    functional_comment = None
+                    try:
+                        functional_comment = json.loads(comment)
+                    except:
                         continue
 
-                dependent_schema = os.path.basename(os.path.normpath(root))
-                dependent_table = file_name[:-4]
+                    if 'node_id' in functional_comment:
+                        # Bug when reading dependencies
+                        dependent_schema, dependent_table = functional_comment['node_id']
+                    if 'override_dependencies' in functional_comment:
+                        sources = set()
+                        for schema, table in functional_comment['override_dependencies']:
+                            sources.add((schema, table))
+                        has_explicit_dependencies = True
+                    if 'ignore_dependencies' in functional_comment:
+                        for schema, table in functional_comment['ignore_dependencies']:
+                            ignored_dependencies.add((schema, table))
+                    if 'additional_dependencies' in functional_comment:
+                        for schema, table in functional_comment['additional_dependencies']:
+                            additional_dependencies.add((schema, table))
 
-                cache_key = (dependent_schema, dependent_table, checksum)
-                if cache_key in dependency_cache:
-                    self.dependencies += dependency_cache[cache_key]
-                    continue
+                # If there aren't explicit dependencies, get them from query sources.
+                if not has_explicit_dependencies:
+                    for source in query.sources():
+                        # Ignore sources without a specified schema
+                        if source.schema:
+                            source_schema = source.schema.lower()
+                            source_table = source.relation.lower()
+                            sources.add((source_schema, source_table))
 
-                # deduplicate sources
-                sources = set()
-                has_explicit_dependencies = False
-                for query in parsing.Query.get_queries(select_stmt):
-                    ignored_dependencies = set()
-                    override_dependencies = None
-                    additional_dependencies = set()
+                    # Add / remove dependencies depending on functional comments
+                    sources.update(additional_dependencies)
+                    sources.difference_update(ignored_dependencies)
 
-                    # first retrieve any functional comments that have information about dependencies
-                    for comment in query.comment_contents():
-                        functional_comment = None
-                        try:
-                            functional_comment = json.loads(comment)
-                        except:
-                            continue
-
-                        if 'node_id' in functional_comment:
-                            dependent_schema, dependent_table = functional_comment['node_id']
-                        if 'override_dependencies' in functional_comment:
-                            sources = set()
-                            for schema, table in functional_comment['override_dependencies']:
-                                sources.add((schema, table))
-                            has_explicit_dependencies = True
-                        if 'ignore_dependencies' in functional_comment:
-                            for schema, table in functional_comment['ignore_dependencies']:
-                                ignored_dependencies.add((schema, table))
-                        if 'additional_dependencies' in functional_comment:
-                            for schema, table in functional_comment['additional_dependencies']:
-                                additional_dependencies.add((schema, table))
-
-                    # If there aren't explicit dependencies, get them from query sources.
-                    if not has_explicit_dependencies:
-                        for source in query.sources():
-                            # Ignore sources without a specified schema
-                            if source.schema:
-                                source_schema = source.schema.lower()
-                                source_table = source.relation.lower()
-                                sources.add((source_schema, source_table))
-
-                        # Add / remove dependencies depending on functional comments
-                        sources.update(additional_dependencies)
-                        sources.difference_update(ignored_dependencies)
-
-                for source_schema, source_table in sources:
-                    self.dependencies.append({
-                        'md5': checksum,
-                        'source_schema': source_schema,
-                        'source_table': source_table,
-                        'dependent_schema': dependent_schema,
-                        'dependent_table': dependent_table
-                    })
+            for source_schema, source_table in sources:
+                # Doing it with a set, eliminates the bug where multiple files with the same name, parent directory
+                # and content hash, contribute to duplication of dependencies after each run
+                dependencies_set.add(
+                    Dependency(checksum, source_schema, source_table, dependent_schema, dependent_table)
+                )
+        self.dependencies = list(dep._asdict() for dep in dependencies_set)
         self.save_cache()
 
     def load_cache(self) -> List[Dict[str, str]]:
