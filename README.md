@@ -177,4 +177,33 @@ python debug.py [arg1 arg2 ...]
 
 Queries can have functional comments on the top. These comments can either specify data distribution for Azure Synapse Analytics or RedShift, or can contain assertions for `check` queries.
 
+### Check queries
+Adding a functional comment at the top of the sql file, in the form of:
+```sql
+/*
+assert_row_count 0
+*/
+SELECT 1 FROM my_schema.my_table WHERE revenue < 0;
+```
+Gives you the option to synthetically fail a step if the returned rows don't correspond to the expectation. There are currently 2 tests supported but they can easily be extended:
+
+* `assert_row_count <x>` - fails if the number of rows returned by the statement is different from `x`
+* `assert_almost_equal <tolerance value>` - fails if the 2 rows returned with single columns have values that differ from each other by more than `tolerance value`
+
+To add more tests, check out [sql_runner/tests.py](blob/master/sql_runner/tests.py)
+
+
+### Override dependencies
+
+Sometimes you want to just update a table, not re-create it. This calls for an `execute` type query, and the `UPDATE` itself isn't well parsed by the dependency detector. For that, and other cases where dependency detection doesn't work to your service, you can help it with these functional comments.
+
+Anywhere in the SQL statement, add a comment that has valid JSON. The following JSON keys are currently supported:
+
+* `"node_id": ["my_schema", "my_table"]` - overrides the name from the query list CSV and from the file name. This lets you have multiple steps that work on the same table
+* `"override_dependencies": [["my_schema", "mytable1"], ["my_schema", "mytable2"]]` - tells the dependency parser to completely ignore the query when detecting dependencies, and to take only these
+* `"ignore_dependencies": [["my_schema", "mytable1"], ["my_schema", "mytable2"]]` - tells the dependency parser to ignore a list of dependencies from the ones detected in the query.
+* `"additional_dependencies": [["my_schema", "mytable1"], ["my_schema", "mytable2"]]` - tells the dependency parser to also include a list of explicit dependencies on top of the ones already detected.
+
+
+
 *This needs better documentation, but for now you can check the source code for the DB-specific Query classes in sql_runner/db.*
