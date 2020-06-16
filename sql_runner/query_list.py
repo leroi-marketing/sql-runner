@@ -1,9 +1,10 @@
 import csv
 import datetime
 import io
-from collections import defaultdict
+import sys
+from collections import defaultdict, deque
 from types import SimpleNamespace
-from typing import Dict, List, Callable, Iterable
+from typing import Dict, List, Tuple, Callable, Iterable, Set, Union
 
 from sql_runner import ExecutionType
 from sql_runner.db import DB, get_db_and_query_classes
@@ -47,17 +48,31 @@ class QueryList(list):
 
         added_entities_set = set()
 
-        def add_query(schema, table) -> int:
+        def add_query(schema, table, query_stack: deque) -> int:
             """ Adds a query that creates schema.table, but first it adds its dependencies recursively
             """
             query_key = (schema, table)
+            # Check if this table wasn't already queued for running (not a cyclical dependency)
+            if (schema, table) in query_stack:
+                print(f'Error: "{schema}"."{table}" generates a cyclical dependency:', file=sys.stderr)
+                # Run through the call stack and write the dependency chain until the same point is reached
+                while query_stack:
+                    past_call = query_stack.pop()
+                    print(f'\trequired by "{past_call[0]}"."{past_call[1]}"', file=sys.stderr)
+                    if (schema, table) == past_call:
+                        break
+                raise RecursionError("Cyclical dependency detected")
+
+            query_stack.append(query_key)
+
             is_top_node = True
             # if this query depends on other queries, add the dependencies first
             if query_key in indexed_dependencies:
                 for dep in indexed_dependencies[query_key]:
-                    if add_query(*dep):
+                    if add_query(*dep, query_stack=query_stack):
                         is_top_node = False
 
+            query_stack.pop()
             if query_key in requested_queries_dict:
                 # Only if this query is requested
                 if query_key not in added_entities_set:
@@ -71,7 +86,7 @@ class QueryList(list):
             return False
 
         for query in given_order:
-            add_query(query['schema_name'], query['table_name'])
+            add_query(query['schema_name'], query['table_name'], deque())
 
     @staticmethod
     def from_csv_files(config: SimpleNamespace, args: SimpleNamespace, csv_files: List[str],
