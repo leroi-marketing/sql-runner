@@ -1,4 +1,5 @@
 import argparse
+import importlib
 import json
 import os
 from types import SimpleNamespace
@@ -78,11 +79,30 @@ def parse_args():
     return args
 
 
+def get_config(config_path) -> SimpleNamespace:
+    """ Get config data structure, either from JSON file or python script that gets imported
+    """
+    if not os.path.exists and os.path.isfile(config_path):
+        raise Exception(f"Config path \"{config_path}\" is not a file")
+    if config_path.lower().endswith('.json'):
+        with open(config_path) as f:
+            config = SimpleNamespace(**json.load(f))
+    elif config_path.lower().endswith('.py'):
+        spec = importlib.util.spec_from_file_location("config", config_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        config = module.Config()
+    else:
+        raise Exception("You must provide a config file that's either JSON or Python script")
+    return config
+
+
 def run(args):
     from sql_runner import deps, query_list, db, ExecutionType
 
-    with open(args.config) as f:
-        config = SimpleNamespace(**json.load(f))
+    config = get_config(args.config)
+
+    if getattr(config, 'graphviz_path', None):
         os.environ["PATH"] += os.pathsep + config.graphviz_path
 
     if args.database:

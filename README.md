@@ -142,6 +142,46 @@ Two configuration files are needed to use the sqlrunner.
     "graphviz_path": "{GRAPHVIZ_PATH_FOR_WINDOWS}"
 }
 ```
+
+Alternatively, a path to a Python script that gets included into sqlrunner can also be supplied. The script has to have a class `Config` with static value members or `@property` members for every JSON main property. Short, insufficient example:
+
+```py
+class Config:
+    sql_path = "sql"
+    database_type = "snowflake"
+    explicit_database = True
+    test = {
+        "override": {
+            "schema": {
+                "prefix": "zz_"
+            }
+        },
+        "except": "re.search('^x', schema)"
+    }
+
+    @property
+    def auth(self):
+        # Retrieve credentials from somewhere
+        return {
+            "user": "DEPT",
+            "password": "123456",
+            "database": "DWH",
+            "account": "db"
+        }
+
+
+if __name__ == '__main__':
+    import json
+    config = {}
+    config_obj = Config()
+    for key in dir(config_obj):
+        if not key.startswith('__'):
+            config[key] = getattr(config_obj, key)
+    print(json.dumps(config, indent=4))
+```
+
+This feature allows one to store sensitive credentials in an encrypted state
+
 * One or more csv files specifying the name of the the tables and views and their respective schemas.
  ```
  {SCHEMA_1};{SQL_FILENAME_1};e
