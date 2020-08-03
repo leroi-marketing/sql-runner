@@ -27,7 +27,11 @@ setup(
 
     extras_require={
         's3': ['boto3'],
-        'snowflake': ['snowflake-connector-python==2.0.4'],
+        'snowflake': [
+            'snowflake-connector-python==2.0.4',
+            # Pin idna because requests installs a newer version than what is required by snowflake-connector-python
+            'idna<2.9,>=2.5'
+        ],
         'redshift': ['psycopg2-binary'],
         'postgres': ['psycopg2-binary'],
         'azuredwh': ['pyodbc'],
