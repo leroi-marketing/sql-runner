@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.7 (2020-08-03)
+
+- Add the option to have a Python script as configuration file (dynamic config)
+- Pin dependencies for Snowflake
+
 ## 0.4.6 (2020-06-16)
 
 - Fix the search for sql files to specific paths
