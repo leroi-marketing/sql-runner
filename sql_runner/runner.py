@@ -82,7 +82,7 @@ def parse_args():
 def get_config(config_path) -> SimpleNamespace:
     """ Get config data structure, either from JSON file or python script that gets imported
     """
-    if not os.path.exists and os.path.isfile(config_path):
+    if not os.path.exists(config_path) or not os.path.isfile(config_path):
         raise Exception(f"Config path \"{config_path}\" is not a file")
     if config_path.lower().endswith('.json'):
         with open(config_path) as f:
