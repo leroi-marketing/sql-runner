@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.8 (2020-08-03)
+
+- Pin dependencies for boto3
+- Add Docker configurations and documentation
+
 ## 0.4.7 (2020-08-03)
 
 - Add the option to have a Python script as configuration file (dynamic config)

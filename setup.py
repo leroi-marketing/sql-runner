@@ -6,7 +6,7 @@ def get_long_description():
 
 setup(
     name='sql-runner',
-    version='0.4.7',
+    version='0.4.8',
 
     description="DEPT SQL runner",
     long_description=get_long_description(),
@@ -26,7 +26,7 @@ setup(
     ],
 
     extras_require={
-        's3': ['boto3'],
+        's3': ['boto3<1.11.0,>=1.4.4'],
         'snowflake': [
             'snowflake-connector-python==2.0.4',
             # Pin idna because requests installs a newer version than what is required by snowflake-connector-python
