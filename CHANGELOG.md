@@ -1,9 +1,12 @@
 # Changelog
 
-## 0.4.8 (2020-08-03)
+## 0.4.9 (2020-08-14)
 
 - Pin dependencies for boto3
-- Add Docker configurations and documentation
+
+## 0.4.8 (2020-08-07)
+
+- Fixed config file presence validation
 
 ## 0.4.7 (2020-08-03)
 
