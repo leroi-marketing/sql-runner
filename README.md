@@ -84,6 +84,7 @@ Two configuration files are needed to use the sqlrunner.
 {
     "sql_path": "{PATH}",
     "database_type": "[snowflake|redshift|postgres|bigquery|azuredwh]",
+    "explicit_database": true if has to be present in every table reference (ex. snowflake)
     "auth": {
         // For Azure Synapse Analytics only
         "server": "url.of.azuredwh.server",
@@ -244,6 +245,7 @@ Anywhere in the SQL statement, add a comment that has valid JSON. The following 
 * `"ignore_dependencies": [["my_schema", "mytable1"], ["my_schema", "mytable2"]]` - tells the dependency parser to ignore a list of dependencies from the ones detected in the query.
 * `"additional_dependencies": [["my_schema", "mytable1"], ["my_schema", "mytable2"]]` - tells the dependency parser to also include a list of explicit dependencies on top of the ones already detected.
 
-
+### Preprocess names in `e` statements
+"execute" `e` statements in legacy versions were not processed at all to substitute names. With the addition of the `"preprocess_names": true` value, sources and destinations will be updated accordingly (staging prefix, suffix, etc).
 
 *This needs better documentation, but for now you can check the source code for the DB-specific Query classes in sql_runner/db.*

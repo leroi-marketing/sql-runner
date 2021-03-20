@@ -16,10 +16,36 @@ class Query:
     """
     source_patterns = (
         # Pattern for finding "FROM/JOIN x.y.z, a.b, c" or similar
-        re.compile(r'(f[\s-]*)((?:(?:n\.){,2}n)(?:[\s-]*,[\s-]*(?:n\.){,2}n)*)'),
+        re.compile(r'''
+            (
+                (?:x[\s-]*)?f[\s-]* # FROM ... (we also match DELETE FROM, but later it's filtered out by destination)
+            )
+            (
+                (?:
+                    (?:n\.){,2}n
+                )
+                (?:
+                    [\s-]*,[\s-]*(?:n\.){,2}n
+                )*
+            )
+        ''', re.VERBOSE),
         # Pattern for finding individual items from comma-separated entities from the string matched by the
         # previous pattern
         re.compile(r'(?<![.n])(?:n\.){,2}n(?![.n])')
+    )
+
+    destination_patterns = (
+        re.compile(r'''
+            (
+                x[\s-]*f[\s-]* # DELETE FROM
+                |
+                I[\s-]*i[\s-]* # INSERT INTO
+                |
+                u[\s-]* # UPDATE
+            )
+            ((?:n\.){,2}n) # name.name.name (or something)
+        ''', re.VERBOSE),
+        source_patterns[1]
     )
 
     """ Pattern for matching the entire DDL part of a CREATE SOMETHING <name> AS ...
@@ -28,7 +54,7 @@ class Query:
 
     """ Pattern for recognizing whether this query contains any data manipulation language (WITH... SELECT...)
     """
-    dml_pattern = re.compile(r'[cs]')
+    dml_pattern = re.compile(r'[csIxu]')
 
     def __init__(self, tokens: List[sqlparse.sql.Token],
                  start_quotes: str = '"', end_quotes: str = '"'):
@@ -89,6 +115,14 @@ class Query:
                     chrtokens.append('l')
                 elif token_value == 'SELECT':
                     chrtokens.append('s')
+                elif token_value == 'DELETE':
+                    chrtokens.append('x')
+                elif token_value == 'INSERT':
+                    chrtokens.append('I')
+                elif token_value == 'INTO':
+                    chrtokens.append('i')
+                elif token_value == 'UPDATE':
+                    chrtokens.append('u')
                 elif ttype in sqlparse.tokens.Keyword.CTE:
                     chrtokens.append('c')
                 elif token_value == 'AS':
@@ -132,6 +166,9 @@ class Query:
         sources: List["Source"] = []
         pattern, local_pattern = tuple(Query.source_patterns)
         for m in pattern.finditer(self.tokens_as_str()):
+            if Query.destination_patterns[0].match(m.group(0)):
+                # If it looks like a destination, it's not a source, d'uhh
+                continue
             span = m.span()
             offset = len(m.group(1))
             for ml in local_pattern.finditer(m.group(2)):
@@ -141,6 +178,22 @@ class Query:
                     sources[-1].right_neighbor = source
                 sources.append(source)
         return sources
+
+    def destination(self) -> "Source":
+        """ Returns the object acted upon in a statement (ex. DELETE FROM or INSERT INTO, or UPDATE)
+        """
+        #TODO: Rename Source class to TableIdentifier or something (this is confusing)
+        destinations: List["Source"] = []
+        pattern, local_pattern = tuple(Query.destination_patterns)
+        for m in pattern.finditer(self.tokens_as_str()):
+            span = m.span()
+            offset = len(m.group(1))
+            for ml in local_pattern.finditer(m.group(2)):
+                local_span = ml.span()
+                destination = Source(self, span[0] + local_span[0] + offset, span[0] + local_span[1] + offset)
+                if destinations:
+                    destinations[-1].right_neighbor = destination
+                return destination
 
     @lru_cache(maxsize=1)
     def comment_contents(self) -> Iterator[str]:

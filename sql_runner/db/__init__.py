@@ -5,6 +5,7 @@ from typing import List, Dict, Union, Tuple, Set, Iterator, Iterable, Callable, 
 from functools import partial, lru_cache
 import csv
 import io
+import json
 import sqlparse
 
 from sql_runner import tests, parsing, ExecutionType
@@ -52,18 +53,13 @@ class Query(object):
         with open(self.path, 'r', encoding=getattr(self.config, 'encoding', 'utf-8')) as f:
             self.query: str = f.read()
 
-        self.__managed_statements: Iterator[parsing.Query] = parsing.Query.get_queries(self.query)
+        self.managed_statements: List[parsing.Query] = list(parsing.Query.get_queries(self.query))
 
     def __repr__(self):
         return f'{self.name} > {self.action}'
 
     def get_statement_generator(self, statement_type: str) -> Callable[[ExecutionType], Iterable[str]]:
         return getattr(self, statement_type)
-
-    @property
-    @lru_cache(maxsize=1)
-    def managed_statements(self) -> List[parsing.Query]:
-        return list(self.__managed_statements)
 
     @property
     def assertion(self) -> FunctionType:
@@ -240,7 +236,18 @@ class Query(object):
         """
         # Statement splitting, or any parsing whatsoever, is not being done due to this being preserved as an option
         # to make literal DB queries, no matter how complex they are for `sqlparse`.
-        return (self.query,)
+        for stmt in self.managed_statements:
+            for comment in stmt.comment_contents():
+                functional_comment = None
+                try:
+                    functional_comment = json.loads(comment)
+                except:
+                    continue
+                if functional_comment.get('preprocess_names', False):
+                    for source in stmt.sources():
+                        self.preprocess_names(source)
+                    self.preprocess_names(stmt.destination())
+            yield str(stmt)
 
     def select_stmt(self,
                     extra_manipulations: Union[None, Callable[[parsing.Query], None]] = None) -> Union[str, None]:
