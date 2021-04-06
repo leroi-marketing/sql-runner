@@ -5,6 +5,7 @@
 - Update dependencies
 - Update python requirements to 3.8
 - Add optional `preprocess_names` feature also to `e` statements
+- Update bigquery, enabling staging 
 
 ## 0.4.10 (2020-12-02)
 
