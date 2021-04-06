@@ -35,7 +35,9 @@ class FakeClient:
 
     def delete_dataset(self, schema):
         pass
-
+    
+    def create_dataset(self, schema):
+        pass
 
 class BigQueryQuery(Query):
     def __init__(self, config: SimpleNamespace, args: SimpleNamespace, all_created_entities: Set[Tuple[str, str]],
