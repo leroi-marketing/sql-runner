@@ -6,7 +6,7 @@ def get_long_description():
 
 setup(
     name='sql-runner',
-    version='0.4.9',
+    version='0.4.10',
 
     description="DEPT SQL runner",
     long_description=get_long_description(),
@@ -15,11 +15,11 @@ setup(
     python_requires='~=3.6',
 
     install_requires=[
-        'networkx==2.2',
+        'networkx==2.5',
         'pydot==1.4.1',
         'graphviz==0.10.1',
         'pythondialog',
-        'sqlparse'
+        'sqlparse',
     ],
 
     dependency_links=[

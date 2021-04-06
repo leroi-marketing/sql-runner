@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.10 (2020-12-02)
+
+- Update dependencies for python3.9 compatibility
 ## 0.4.9 (2020-08-14)
 
 - Pin dependencies for boto3
