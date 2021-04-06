@@ -6,18 +6,18 @@ def get_long_description():
 
 setup(
     name='sql-runner',
-    version='0.4.10',
+    version='0.5.0',
 
     description="DEPT SQL runner",
     long_description=get_long_description(),
     long_description_content_type='text/markdown',
 
-    python_requires='~=3.6',
+    python_requires='~=3.8',
 
     install_requires=[
         'networkx==2.5',
-        'pydot==1.4.1',
-        'graphviz==0.10.1',
+        'pydot==1.4.2',
+        'graphviz==0.16',
         'pythondialog',
         'sqlparse',
     ],
@@ -26,16 +26,14 @@ setup(
     ],
 
     extras_require={
-        's3': ['boto3<1.11.0,>=1.4.4'],
+        's3': ['boto3==1.17.33'],
         'snowflake': [
-            'snowflake-connector-python==2.0.4',
-            # Pin idna because requests installs a newer version than what is required by snowflake-connector-python
-            'idna<2.9,>=2.5'
+            'snowflake-connector-python==2.4.1',
         ],
         'redshift': ['psycopg2-binary'],
         'postgres': ['psycopg2-binary'],
         'azuredwh': ['pyodbc'],
-        'bigquery': ['google-cloud-bigquery==1.23.1']
+        'bigquery': ['google-cloud-bigquery==2.12.0'],
     },
 
     packages=find_packages(),
@@ -49,7 +47,7 @@ setup(
             # legacy
             'sqlrunner = sql_runner.runner:main',
             # Interactive
-            'run_sql = sql_runner.run_sql:main'
+            'run_sql = sql_runner.run_sql:main',
         ],
     }
 )
